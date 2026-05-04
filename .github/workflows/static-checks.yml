@@ -1,0 +1,35 @@
+name: Static checks
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  static-checks:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pyflakes
+
+      - name: Python syntax and lint
+        run: |
+          python -m py_compile fs_sweep_app_spline.py preselection_shortlist.py
+          python -m pyflakes fs_sweep_app_spline.py preselection_shortlist.py
+
+      - name: JavaScript syntax
+        run: |
+          node --check plotly_export_button/listener.js
+          node --check plotly_selection_bridge/listener.js
+          node --check plotly_selection_bridge/selection_table_module.js
+          node --check plotly_rx_toolbar/listener.js
