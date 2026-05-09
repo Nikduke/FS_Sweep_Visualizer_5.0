@@ -1,4 +1,4 @@
-# FS Sweep Visualizer (Spline) - Current Implementation
+# FS Sweep Visualizer - Current Implementation
 
 This document reflects:
 - `fs_sweep_app_spline.py`
