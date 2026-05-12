@@ -12,6 +12,10 @@ ENERGINET_DEFAULT_THRESHOLDS_BY_F1: Dict[int, Dict[int, float]] = {
 # Backward-compatible alias for existing imports (50 Hz defaults).
 ENERGINET_DEFAULT_THRESHOLDS: Dict[int, float] = dict(ENERGINET_DEFAULT_THRESHOLDS_BY_F1[50])
 BAND_HALF_WIDTH_FACTOR = 0.2
+RANKED_METHOD_N_MIN = 2
+RANKED_METHOD_N_MAX = 6
+OUTLIER_MAD_Z_THRESHOLD = 3.5
+OUTLIER_PERCENTILE_FALLBACK = 95.0
 
 LIMITATION_NOTE = (
     "Low-order resonance / TOV screening only (f1-relative up to the available sweep range). "
@@ -140,6 +144,7 @@ def _max_mag_index_in_band(
     x_arr: np.ndarray,
     freq: np.ndarray,
     band_idx: np.ndarray,
+    capacitive_only: bool = False,
 ) -> Optional[int]:
     if band_idx.size == 0:
         return None
@@ -147,6 +152,8 @@ def _max_mag_index_in_band(
     x = x_arr[band_idx]
     mags = np.sqrt(np.square(r) + np.square(x))
     valid = np.isfinite(mags)
+    if bool(capacitive_only):
+        valid = valid & np.isfinite(x) & (x < 0.0)
     if not np.any(valid):
         return None
     valid_local = np.where(valid)[0]
@@ -172,6 +179,7 @@ def _compute_harmonic_max_points(
     cases: Sequence[str],
     f1_hz: float,
     n_values: Sequence[int],
+    capacitive_only: bool = False,
 ) -> Tuple[Dict[int, np.ndarray], Dict[int, Dict[str, Dict[str, float]]]]:
     band_half = BAND_HALF_WIDTH_FACTOR * float(f1_hz)
     unique_n = sorted({int(n) for n in n_values if int(n) >= 1})
@@ -184,7 +192,13 @@ def _compute_harmonic_max_points(
             continue
         for case in cases:
             case_id = str(case)
-            idx_star = _max_mag_index_in_band(r_map[case_id], x_map[case_id], freq, b_idx)
+            idx_star = _max_mag_index_in_band(
+                r_map[case_id],
+                x_map[case_id],
+                freq,
+                b_idx,
+                capacitive_only=bool(capacitive_only),
+            )
             if idx_star is None:
                 continue
             r_val = float(r_map[case_id][idx_star])
@@ -266,7 +280,6 @@ def _compute_iec_vertices(
     x_map: Dict[str, np.ndarray],
     cases: Sequence[str],
     f1_hz: float,
-    capacitive_only: bool = False,
     band_indices: Optional[Dict[int, np.ndarray]] = None,
     harmonic_points: Optional[Dict[int, Dict[str, Dict[str, float]]]] = None,
 ) -> Dict[str, object]:
@@ -304,8 +317,6 @@ def _compute_iec_vertices(
         for case_id, point in harmonic_points.get(int(n), {}).items():
             r_val = float(point["r"])
             x_val = float(point["x"])
-            if bool(capacitive_only) and x_val >= 0.0:
-                continue
             p = (r_val, x_val)
             case_points[case_id] = p
             point_to_cases.setdefault(p, []).append(case_id)
@@ -345,6 +356,255 @@ def _compute_iec_vertices(
         "iec_vertex_orders": vertex_orders_clean,
         "n_env": int(n_env),
     }
+
+
+def _ranked_payload(rows: Sequence[Dict[str, object]]) -> Dict[str, object]:
+    clean_rows: List[Dict[str, object]] = []
+    seen: set[str] = set()
+    for row in rows:
+        cid = str(row.get("case_id", ""))
+        if not cid or cid in seen:
+            continue
+        score = float(row.get("score", 0.0))
+        zmax = float(row.get("zmax", 0.0))
+        harmonic = int(row.get("harmonic", 0))
+        if not np.isfinite(score):
+            continue
+        seen.add(cid)
+        clean_rows.append(
+            {
+                "case_id": cid,
+                "score": float(score),
+                "zmax": float(zmax) if np.isfinite(zmax) else 0.0,
+                "harmonic": int(harmonic) if harmonic >= 1 else 0,
+            }
+        )
+    clean_rows.sort(
+        key=lambda r: (
+            -float(r["score"]),
+            -float(r["zmax"]),
+            int(r["harmonic"]) if int(r["harmonic"]) > 0 else 999,
+            str(r["case_id"]),
+        )
+    )
+    return {
+        "case_ids": [str(r["case_id"]) for r in clean_rows],
+        "scores": {str(r["case_id"]): float(r["score"]) for r in clean_rows},
+        "zmax": {str(r["case_id"]): float(r["zmax"]) for r in clean_rows},
+        "harmonic": {str(r["case_id"]): int(r["harmonic"]) for r in clean_rows},
+    }
+
+
+def _ranked_rows_payload(rows: Sequence[Dict[str, object]], top_n_scope: str = "global") -> Dict[str, object]:
+    clean_rows: List[Dict[str, object]] = []
+    seen: set[Tuple[str, int]] = set()
+    for row in rows:
+        cid = str(row.get("case_id", ""))
+        score = float(row.get("score", 0.0))
+        zmax = float(row.get("zmax", 0.0))
+        harmonic = int(row.get("harmonic", 0))
+        if not cid or harmonic < 1 or not np.isfinite(score):
+            continue
+        key = (cid, harmonic)
+        if key in seen:
+            continue
+        seen.add(key)
+        clean_rows.append(
+            {
+                "case_id": cid,
+                "score": float(score),
+                "zmax": float(zmax) if np.isfinite(zmax) else 0.0,
+                "harmonic": int(harmonic),
+            }
+        )
+    clean_rows.sort(
+        key=lambda r: (
+            int(r["harmonic"]),
+            -float(r["score"]),
+            -float(r["zmax"]),
+            str(r["case_id"]),
+        )
+    )
+    return {
+        "case_ids": [str(r["case_id"]) for r in clean_rows],
+        "scores": [float(r["score"]) for r in clean_rows],
+        "zmax": [float(r["zmax"]) for r in clean_rows],
+        "harmonic": [int(r["harmonic"]) for r in clean_rows],
+        "top_n_scope": str(top_n_scope or "global"),
+    }
+
+
+def _compute_peak_z_ranking(
+    harmonic_points: Dict[int, Dict[str, Dict[str, float]]],
+    cases: Sequence[str],
+) -> Dict[str, object]:
+    case_set = {str(c) for c in cases}
+    rows: List[Dict[str, object]] = []
+    for n in sorted(harmonic_points.keys()):
+        for case_id, point in harmonic_points.get(int(n), {}).items():
+            cid = str(case_id)
+            if cid not in case_set:
+                continue
+            z = float(point.get("zmax", 0.0))
+            if not np.isfinite(z):
+                continue
+            rows.append({"case_id": cid, "score": z, "zmax": z, "harmonic": int(n)})
+    return _ranked_rows_payload(rows, top_n_scope="per_harmonic")
+
+
+def _robust_scale(values: np.ndarray) -> Tuple[float, float]:
+    vals = np.asarray(values, dtype=float)
+    vals = vals[np.isfinite(vals)]
+    if vals.size == 0:
+        return 0.0, 0.0
+    med = float(np.nanmedian(vals))
+    mad = float(np.nanmedian(np.abs(vals - med)))
+    scale = 1.4826 * mad
+    if not np.isfinite(scale) or scale <= 1e-12:
+        scale = 0.0
+    return med, scale
+
+
+def _cohort_stats_by_harmonic(
+    harmonic_points: Dict[int, Dict[str, Dict[str, float]]]
+) -> Dict[int, Dict[str, float]]:
+    stats: Dict[int, Dict[str, float]] = {}
+    for n, points in harmonic_points.items():
+        z_vals = np.asarray(
+            [float(p.get("zmax", np.nan)) for p in points.values()],
+            dtype=float,
+        )
+        z_vals = z_vals[np.isfinite(z_vals)]
+        if z_vals.size == 0:
+            continue
+        med, scale = _robust_scale(z_vals)
+        p95 = float(np.nanpercentile(z_vals, 95.0))
+        if not np.isfinite(p95) or p95 <= 0:
+            p95 = float(np.nanmax(z_vals)) if z_vals.size else 0.0
+        stats[int(n)] = {
+            "median": float(med),
+            "scale": float(scale),
+            "p95": float(p95),
+        }
+    return stats
+
+
+def _compute_risk_ranking(
+    harmonic_points: Dict[int, Dict[str, Dict[str, float]]],
+    cases: Sequence[str],
+    f1_hz: float,
+) -> Dict[str, object]:
+    case_set = {str(c) for c in cases}
+    stats = _cohort_stats_by_harmonic(harmonic_points)
+    rows_by_case: Dict[str, Dict[str, object]] = {}
+    area_by_case: Dict[str, float] = {str(c): 0.0 for c in cases}
+    area_den = 0.0
+    point_scores: Dict[str, List[Tuple[float, float, int]]] = {str(c): [] for c in cases}
+
+    for n, points in harmonic_points.items():
+        st = stats.get(int(n))
+        if not st:
+            continue
+        med = float(st["median"])
+        scale = float(st["scale"])
+        p95 = max(float(st["p95"]), 1e-12)
+        area_den += p95
+        for cid_raw, point in points.items():
+            cid = str(cid_raw)
+            if cid not in case_set:
+                continue
+            z = float(point.get("zmax", np.nan))
+            r_val = abs(float(point.get("r", np.nan)))
+            freq_val = float(point.get("freq", np.nan))
+            if not np.isfinite(z):
+                continue
+            peak_component = z / p95
+            if scale > 0:
+                prominence_component = max(0.0, (z - med) / scale) / 5.0
+            else:
+                prominence_component = max(0.0, (z - med) / max(abs(med), 1.0))
+            excess = max(0.0, z - med)
+            area_by_case[cid] = area_by_case.get(cid, 0.0) + excess
+            damping_component = np.log1p(z / max(r_val, 1.0)) / 5.0 if np.isfinite(r_val) else 0.0
+            harmonic_center = float(n) * float(f1_hz)
+            proximity_component = 0.0
+            if np.isfinite(freq_val) and harmonic_center > 0:
+                rel = abs(freq_val - harmonic_center) / max(BAND_HALF_WIDTH_FACTOR * float(f1_hz), 1e-12)
+                proximity_component = max(0.0, 1.0 - min(1.0, rel))
+            point_score = (
+                0.35 * peak_component
+                + 0.20 * prominence_component
+                + 0.15 * damping_component
+                + 0.10 * proximity_component
+            )
+            point_scores.setdefault(cid, []).append((float(point_score), z, int(n)))
+
+    area_norm_den = max(area_den, 1e-12)
+    for cid, scores in point_scores.items():
+        if not scores:
+            continue
+        best_point = max(scores, key=lambda x: (x[0], x[1], -x[2]))
+        area_component = area_by_case.get(cid, 0.0) / area_norm_den
+        total_score = float(best_point[0]) + 0.20 * float(area_component)
+        rows_by_case[cid] = {
+            "case_id": cid,
+            "score": total_score,
+            "zmax": float(best_point[1]),
+            "harmonic": int(best_point[2]),
+        }
+
+    return _ranked_payload(list(rows_by_case.values()))
+
+
+def _compute_outlier_ranking(
+    harmonic_points: Dict[int, Dict[str, Dict[str, float]]],
+    cases: Sequence[str],
+) -> Dict[str, object]:
+    case_set = {str(c) for c in cases}
+    rows_by_case: Dict[str, Dict[str, object]] = {}
+    for n, points in harmonic_points.items():
+        vals_by_case: Dict[str, float] = {}
+        for cid_raw, point in points.items():
+            cid = str(cid_raw)
+            if cid not in case_set:
+                continue
+            z = float(point.get("zmax", np.nan))
+            if np.isfinite(z):
+                vals_by_case[cid] = z
+        vals = np.asarray(list(vals_by_case.values()), dtype=float)
+        if vals.size < 3:
+            continue
+        med, scale = _robust_scale(vals)
+        if scale > 0:
+            for cid, z in vals_by_case.items():
+                robust_z = (z - med) / scale
+                if robust_z < OUTLIER_MAD_Z_THRESHOLD:
+                    continue
+                old = rows_by_case.get(cid)
+                if old is None or robust_z > float(old["score"]):
+                    rows_by_case[cid] = {
+                        "case_id": cid,
+                        "score": float(robust_z),
+                        "zmax": float(z),
+                        "harmonic": int(n),
+                    }
+        else:
+            threshold = float(np.nanpercentile(vals, OUTLIER_PERCENTILE_FALLBACK))
+            if not np.isfinite(threshold):
+                continue
+            for cid, z in vals_by_case.items():
+                if z < threshold or z <= med:
+                    continue
+                score = z / max(threshold, 1e-12)
+                old = rows_by_case.get(cid)
+                if old is None or score > float(old["score"]):
+                    rows_by_case[cid] = {
+                        "case_id": cid,
+                        "score": float(score),
+                        "zmax": float(z),
+                        "harmonic": int(n),
+                    }
+    return _ranked_payload(list(rows_by_case.values()))
 
 
 def build_preselection_payload(
@@ -389,6 +649,15 @@ def build_preselection_payload(
             f1_val,
             range(2, max_n + 1),
         )
+        _band_indices_cap, harmonic_points_capacitive = _compute_harmonic_max_points(
+            freq,
+            r_map,
+            x_map,
+            chosen_cases,
+            f1_val,
+            range(2, max_n + 1),
+            capacitive_only=True,
+        )
         energinet = _compute_energinet_metrics(
             freq,
             r_map,
@@ -404,7 +673,6 @@ def build_preselection_payload(
             x_map,
             chosen_cases,
             f1_val,
-            capacitive_only=False,
             band_indices=band_indices,
             harmonic_points=harmonic_points,
         )
@@ -414,10 +682,15 @@ def build_preselection_payload(
             x_map,
             chosen_cases,
             f1_val,
-            capacitive_only=True,
             band_indices=band_indices,
-            harmonic_points=harmonic_points,
+            harmonic_points=harmonic_points_capacitive,
         )
+        peak_z_all = _compute_peak_z_ranking(harmonic_points, chosen_cases)
+        peak_z_capacitive = _compute_peak_z_ranking(harmonic_points_capacitive, chosen_cases)
+        risk_all = _compute_risk_ranking(harmonic_points, chosen_cases, f1_val)
+        risk_capacitive = _compute_risk_ranking(harmonic_points_capacitive, chosen_cases, f1_val)
+        outlier_all = _compute_outlier_ranking(harmonic_points, chosen_cases)
+        outlier_capacitive = _compute_outlier_ranking(harmonic_points_capacitive, chosen_cases)
         by_f1[f1_key] = {
             "energinet_metrics": dict(energinet["energinet_metrics"]),
             "band_sample_counts": dict(energinet["band_sample_counts"]),
@@ -434,6 +707,18 @@ def build_preselection_payload(
                     "iec_vertex_orders": dict(iec_capacitive["iec_vertex_orders"]),
                     "n_env": int(iec_capacitive["n_env"]),
                 },
+            },
+            "peak_z_modes": {
+                "all": dict(peak_z_all),
+                "capacitive": dict(peak_z_capacitive),
+            },
+            "risk_modes": {
+                "all": dict(risk_all),
+                "capacitive": dict(risk_capacitive),
+            },
+            "outlier_modes": {
+                "all": dict(outlier_all),
+                "capacitive": dict(outlier_capacitive),
             },
         }
 

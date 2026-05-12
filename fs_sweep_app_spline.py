@@ -141,7 +141,7 @@ DIM_MARKER_OPACITY = 0.28
 
 # ---- R vs X scatter ----
 RX_SCATTER_HEIGHT_FACTOR = 1.5
-RX_TOOLBAR_INITIAL_HEIGHT_PX = 112
+RX_TOOLBAR_INITIAL_HEIGHT_PX = 220
 SELECTION_MODE_AXIS_FONT_COLOR = "#6B7280"
 SELECTION_MODE_AXIS_TITLE_FONT_SIZE_PX = 14
 SELECTION_MODE_TICK_FONT_SIZE_PX = 12
@@ -481,6 +481,73 @@ def _compact_iec_mode_payload(mode_payload: Dict[str, object], case_index: Dict[
     }
 
 
+def _compact_ranked_mode_payload(mode_payload: Dict[str, object], case_index: Dict[str, int]) -> Dict[str, object]:
+    ids_raw = mode_payload.get("case_ids")
+    ids = [str(v) for v in ids_raw] if isinstance(ids_raw, list) else []
+    scores_raw = mode_payload.get("scores")
+    zmax_raw = mode_payload.get("zmax")
+    harmonic_raw = mode_payload.get("harmonic")
+
+    case_idx: List[int] = []
+    scores_out: List[float] = []
+    zmax_out: List[float] = []
+    harmonic_out: List[int] = []
+    if isinstance(scores_raw, list):
+        zmax_list = zmax_raw if isinstance(zmax_raw, list) else []
+        harmonic_list = harmonic_raw if isinstance(harmonic_raw, list) else []
+        seen_rows = set()
+        for i, cid_raw in enumerate(ids):
+            cid = str(cid_raw)
+            if not cid:
+                continue
+            idx = case_index.get(cid)
+            if idx is None:
+                continue
+            score = _to_finite_float_or_none(scores_raw[i] if i < len(scores_raw) else None)
+            if score is None:
+                continue
+            zmax = _to_finite_float_or_none(zmax_list[i] if i < len(zmax_list) else None)
+            harmonic = _to_nonnegative_int(harmonic_list[i] if i < len(harmonic_list) else 0)
+            row_key = (cid, int(harmonic))
+            if row_key in seen_rows:
+                continue
+            seen_rows.add(row_key)
+            case_idx.append(int(idx))
+            scores_out.append(float(score))
+            zmax_out.append(float(zmax if zmax is not None else 0.0))
+            harmonic_out.append(int(harmonic))
+    else:
+        scores = scores_raw if isinstance(scores_raw, dict) else {}
+        zmax_by_case = zmax_raw if isinstance(zmax_raw, dict) else {}
+        harmonic_by_case = harmonic_raw if isinstance(harmonic_raw, dict) else {}
+        seen_case_ids = set()
+        for cid_raw in ids:
+            cid = str(cid_raw)
+            if not cid or cid in seen_case_ids:
+                continue
+            seen_case_ids.add(cid)
+            idx = case_index.get(cid)
+            if idx is None:
+                continue
+            score = _to_finite_float_or_none(scores.get(cid))
+            if score is None:
+                continue
+            zmax = _to_finite_float_or_none(zmax_by_case.get(cid))
+            harmonic = _to_nonnegative_int(harmonic_by_case.get(cid, 0))
+            case_idx.append(int(idx))
+            scores_out.append(float(score))
+            zmax_out.append(float(zmax if zmax is not None else 0.0))
+            harmonic_out.append(int(harmonic))
+
+    return {
+        "case_idx": case_idx,
+        "scores": scores_out,
+        "zmax": zmax_out,
+        "harmonic": harmonic_out,
+        "top_n_scope": str(mode_payload.get("top_n_scope", "global")),
+    }
+
+
 def _compact_preselection_payload(payload: Dict[str, object]) -> Dict[str, object]:
     if not isinstance(payload, dict):
         return {
@@ -488,11 +555,11 @@ def _compact_preselection_payload(payload: Dict[str, object]) -> Dict[str, objec
             "error": "Invalid preselection payload shape.",
             "limitation_note": "",
             "cases_count": 0,
-            "format": "compact_v2",
+            "format": "compact_v3",
             "by_f1": {},
         }
 
-    if str(payload.get("format", "")) == "compact_v2":
+    if str(payload.get("format", "")) == "compact_v3":
         return dict(payload)
 
     out: Dict[str, object] = {
@@ -500,7 +567,7 @@ def _compact_preselection_payload(payload: Dict[str, object]) -> Dict[str, objec
         "error": str(payload.get("error", "")),
         "limitation_note": str(payload.get("limitation_note", "")),
         "cases_count": int(_to_nonnegative_int(payload.get("cases_count", 0))),
-        "format": "compact_v2",
+        "format": "compact_v3",
         "by_f1": {},
     }
 
@@ -521,6 +588,13 @@ def _compact_preselection_payload(payload: Dict[str, object]) -> Dict[str, objec
             capacitive_src = iec_modes.get("capacitive")
             all_node = all_src if isinstance(all_src, dict) else base_node_raw
             capacitive_node = capacitive_src if isinstance(capacitive_src, dict) else all_node
+            ranked_sources: List[Dict[str, object]] = []
+            for modes_name in ("peak_z_modes", "risk_modes", "outlier_modes"):
+                modes_raw = base_node_raw.get(modes_name)
+                modes = modes_raw if isinstance(modes_raw, dict) else {}
+                for ranked_node_raw in (modes.get("all"), modes.get("capacitive")):
+                    if isinstance(ranked_node_raw, dict):
+                        ranked_sources.append(ranked_node_raw)
 
             for mode_node in (all_node, capacitive_node):
                 mode_ids = mode_node.get("iec_case_ids") if isinstance(mode_node, dict) else None
@@ -529,8 +603,31 @@ def _compact_preselection_payload(payload: Dict[str, object]) -> Dict[str, objec
                         c = str(cid)
                         if c and c not in case_ids:
                             case_ids.append(c)
+            for ranked_node in ranked_sources:
+                ranked_ids = ranked_node.get("case_ids")
+                if isinstance(ranked_ids, list):
+                    for cid in ranked_ids:
+                        c = str(cid)
+                        if c and c not in case_ids:
+                            case_ids.append(c)
             case_ids = sorted(case_ids)
             case_index = {cid: i for i, cid in enumerate(case_ids)}
+            ranked_modes: Dict[str, Dict[str, object]] = {}
+            for modes_name in ("peak_z_modes", "risk_modes", "outlier_modes"):
+                modes_raw = base_node_raw.get(modes_name)
+                modes = modes_raw if isinstance(modes_raw, dict) else {}
+                all_mode = modes.get("all")
+                cap_mode = modes.get("capacitive")
+                ranked_modes[modes_name] = {
+                    "all": _compact_ranked_mode_payload(
+                        all_mode if isinstance(all_mode, dict) else {},
+                        case_index,
+                    ),
+                    "capacitive": _compact_ranked_mode_payload(
+                        cap_mode if isinstance(cap_mode, dict) else {},
+                        case_index,
+                    ),
+                }
 
             z2: List[Optional[float]] = []
             z3: List[Optional[float]] = []
@@ -556,7 +653,7 @@ def _compact_preselection_payload(payload: Dict[str, object]) -> Dict[str, objec
             }
 
             by_f1_out[str(f1_key)] = {
-                "format": "compact_v2",
+                "format": "compact_v3",
                 "case_ids": list(case_ids),
                 "energinet": {
                     "z2": z2,
@@ -571,6 +668,9 @@ def _compact_preselection_payload(payload: Dict[str, object]) -> Dict[str, objec
                     "all": _compact_iec_mode_payload(all_node, case_index),
                     "capacitive": _compact_iec_mode_payload(capacitive_node, case_index),
                 },
+                "peak_z_modes": ranked_modes["peak_z_modes"],
+                "risk_modes": ranked_modes["risk_modes"],
+                "outlier_modes": ranked_modes["outlier_modes"],
             }
     out["by_f1"] = by_f1_out
     return out
@@ -1751,6 +1851,35 @@ def _render_global_controls(seq_key: str, container: Optional[object] = None) ->
     }
 
 
+def _infer_default_base_frequency(data: Dict[str, SweepSheet]) -> Optional[int]:
+    max_freq = 0.0
+    for sheet in data.values():
+        if not isinstance(sheet, SweepSheet):
+            continue
+        freq = np.asarray(sheet.frequency_hz, dtype=float)
+        freq = freq[np.isfinite(freq)]
+        if freq.size:
+            max_freq = max(max_freq, float(np.max(freq)))
+    if max_freq <= 0.0:
+        return None
+    if max_freq <= 330.0:
+        return 50
+    if max_freq <= 390.0:
+        return 60
+    return None
+
+
+def _apply_base_frequency_autodetect(data: Dict[str, SweepSheet], data_id: str, base_freq_key: str) -> None:
+    marker_key = "base_frequency_autodetect_data_id"
+    did = str(data_id or "")
+    if not did or st.session_state.get(marker_key) == did:
+        return
+    inferred = _infer_default_base_frequency(data)
+    if inferred in (50, 60):
+        st.session_state[base_freq_key] = int(inferred)
+    st.session_state[marker_key] = did
+
+
 def _render_show_plots_controls(container: Optional[object] = None) -> Tuple[bool, bool, bool, bool, bool]:
     ui = container if container is not None else st.sidebar
     ui.header("Show plots")
@@ -1784,6 +1913,7 @@ def _prepare_render_context(default_path: str) -> AppRenderContext:
     upload_nonce = int(st.session_state.get("upload_nonce", 0))
     seq_key = "seq_label_control"
     base_freq_key = "base_frequency_hz_control"
+    _apply_base_frequency_autodetect(data, str(data_id), base_freq_key)
     if st.session_state.get(seq_key) not in ("Positive", "Zero"):
         st.session_state[seq_key] = "Positive"
     try:
@@ -1879,7 +2009,7 @@ def _prepare_render_context(default_path: str) -> AppRenderContext:
     raw_preselection_payload = st.session_state.get(preselection_cache_key)
     payload_by_f1 = raw_preselection_payload.get("by_f1") if isinstance(raw_preselection_payload, dict) else {}
     cache_has_requested_base = isinstance(payload_by_f1, dict) and requested_base_key in payload_by_f1
-    cache_format_ok = isinstance(raw_preselection_payload, dict) and str(raw_preselection_payload.get("format", "")) == "compact_v2"
+    cache_format_ok = isinstance(raw_preselection_payload, dict) and str(raw_preselection_payload.get("format", "")) == "compact_v3"
     if not isinstance(raw_preselection_payload, dict) or not cache_has_requested_base or not cache_format_ok:
         build_location_caption = selected_location if selected_location else "<empty>"
         with st.spinner(f"Building plots for {build_location_caption} / {int(round(f_base))} Hz..."):

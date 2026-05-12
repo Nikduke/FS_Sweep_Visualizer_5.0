@@ -202,15 +202,33 @@ function createDefaultState(partOptions, colorByOptions, colorByDefault, showOnl
     methodEnerginetEnabled: false,
     methodIecEnabled: false,
     methodIecCapacitiveOnly: false,
+    methodPeakZEnabled: false,
+    methodPeakZCapacitiveOnly: false,
+    methodRiskEnabled: false,
+    methodRiskCapacitiveOnly: false,
+    methodOutlierEnabled: false,
+    methodOutlierCapacitiveOnly: false,
     energinetT2: Number(th.t2),
     energinetT3: Number(th.t3),
     energinetT4: Number(th.t4),
     methodEnerginetTopN: 0,
     methodIecTopN: 0,
+    methodPeakZTopN: 10,
+    methodRiskTopN: 10,
+    methodOutlierTopN: 10,
     methodEnerginetCasesRaw: new Set(),
     methodIecCasesRaw: new Set(),
     methodIecCasesRawAll: new Set(),
     methodIecCasesRawCapacitive: new Set(),
+    methodPeakZCasesRaw: new Set(),
+    methodPeakZCasesRawAll: new Set(),
+    methodPeakZCasesRawCapacitive: new Set(),
+    methodRiskCasesRaw: new Set(),
+    methodRiskCasesRawAll: new Set(),
+    methodRiskCasesRawCapacitive: new Set(),
+    methodOutlierCasesRaw: new Set(),
+    methodOutlierCasesRawAll: new Set(),
+    methodOutlierCasesRawCapacitive: new Set(),
     selectedCases: new Set(),
     colorBy: validDefaultColor,
     baseFrequencyHz: validBase,
@@ -239,6 +257,15 @@ function sanitizeState(state, casesMeta, partOptions, colorByOptions, colorByDef
   next.methodIecCasesRaw = toKnownCaseSet(next.methodIecCasesRaw, knownCaseIds);
   next.methodIecCasesRawAll = toKnownCaseSet(next.methodIecCasesRawAll, knownCaseIds);
   next.methodIecCasesRawCapacitive = toKnownCaseSet(next.methodIecCasesRawCapacitive, knownCaseIds);
+  next.methodPeakZCasesRaw = toKnownCaseSet(next.methodPeakZCasesRaw, knownCaseIds);
+  next.methodPeakZCasesRawAll = toKnownCaseSet(next.methodPeakZCasesRawAll, knownCaseIds);
+  next.methodPeakZCasesRawCapacitive = toKnownCaseSet(next.methodPeakZCasesRawCapacitive, knownCaseIds);
+  next.methodRiskCasesRaw = toKnownCaseSet(next.methodRiskCasesRaw, knownCaseIds);
+  next.methodRiskCasesRawAll = toKnownCaseSet(next.methodRiskCasesRawAll, knownCaseIds);
+  next.methodRiskCasesRawCapacitive = toKnownCaseSet(next.methodRiskCasesRawCapacitive, knownCaseIds);
+  next.methodOutlierCasesRaw = toKnownCaseSet(next.methodOutlierCasesRaw, knownCaseIds);
+  next.methodOutlierCasesRawAll = toKnownCaseSet(next.methodOutlierCasesRawAll, knownCaseIds);
+  next.methodOutlierCasesRawCapacitive = toKnownCaseSet(next.methodOutlierCasesRawCapacitive, knownCaseIds);
 
   const selectedByPart = [];
   const rawByPart = Array.isArray(next.selectedByPart) ? next.selectedByPart : [];
@@ -268,9 +295,18 @@ function sanitizeState(state, casesMeta, partOptions, colorByOptions, colorByDef
   next.methodEnerginetEnabled = Boolean(next.methodEnerginetEnabled);
   next.methodIecEnabled = Boolean(next.methodIecEnabled);
   next.methodIecCapacitiveOnly = Boolean(next.methodIecCapacitiveOnly);
+  next.methodPeakZEnabled = Boolean(next.methodPeakZEnabled);
+  next.methodPeakZCapacitiveOnly = Boolean(next.methodPeakZCapacitiveOnly);
+  next.methodRiskEnabled = Boolean(next.methodRiskEnabled);
+  next.methodRiskCapacitiveOnly = Boolean(next.methodRiskCapacitiveOnly);
+  next.methodOutlierEnabled = Boolean(next.methodOutlierEnabled);
+  next.methodOutlierCapacitiveOnly = Boolean(next.methodOutlierCapacitiveOnly);
   if (!next.methodIecEnabled) {
     next.methodIecCapacitiveOnly = false;
   }
+  if (!next.methodPeakZEnabled) next.methodPeakZCapacitiveOnly = false;
+  if (!next.methodRiskEnabled) next.methodRiskCapacitiveOnly = false;
+  if (!next.methodOutlierEnabled) next.methodOutlierCapacitiveOnly = false;
   const th = preselectionThresholdDefaults();
   const t2 = Number(next.energinetT2 != null ? next.energinetT2 : th.t2);
   const t3 = Number(next.energinetT3 != null ? next.energinetT3 : th.t3);
@@ -280,6 +316,9 @@ function sanitizeState(state, casesMeta, partOptions, colorByOptions, colorByDef
   next.energinetT4 = Number.isFinite(t4) && t4 > 0 ? t4 : Number(th.t4);
   next.methodEnerginetTopN = normalizeTopN(next.methodEnerginetTopN);
   next.methodIecTopN = normalizeTopN(next.methodIecTopN);
+  next.methodPeakZTopN = next.methodPeakZTopN == null ? 10 : normalizeTopN(next.methodPeakZTopN);
+  next.methodRiskTopN = next.methodRiskTopN == null ? 10 : normalizeTopN(next.methodRiskTopN);
+  next.methodOutlierTopN = next.methodOutlierTopN == null ? 10 : normalizeTopN(next.methodOutlierTopN);
   next.showOnlySelected = toStrictBool(next.showOnlySelected, false);
   next.showHarmonics = Boolean(next.showHarmonics);
   const bw = Number(next.binWidthHz || 0);
@@ -331,10 +370,25 @@ function ensureContext() {
     state.methodEnerginetEnabled = false;
     state.methodIecEnabled = false;
     state.methodIecCapacitiveOnly = false;
+    state.methodPeakZEnabled = false;
+    state.methodPeakZCapacitiveOnly = false;
+    state.methodRiskEnabled = false;
+    state.methodRiskCapacitiveOnly = false;
+    state.methodOutlierEnabled = false;
+    state.methodOutlierCapacitiveOnly = false;
     state.methodEnerginetCasesRaw = new Set();
     state.methodIecCasesRaw = new Set();
     state.methodIecCasesRawAll = new Set();
     state.methodIecCasesRawCapacitive = new Set();
+    state.methodPeakZCasesRaw = new Set();
+    state.methodPeakZCasesRawAll = new Set();
+    state.methodPeakZCasesRawCapacitive = new Set();
+    state.methodRiskCasesRaw = new Set();
+    state.methodRiskCasesRawAll = new Set();
+    state.methodRiskCasesRawCapacitive = new Set();
+    state.methodOutlierCasesRaw = new Set();
+    state.methodOutlierCasesRawAll = new Set();
+    state.methodOutlierCasesRawCapacitive = new Set();
     state.selectedCases = new Set();
     // Force method candidates recomputation after reset-trigger reruns
     // (e.g. spline toggle), otherwise stale cache key can keep raw sets empty.
@@ -650,14 +704,89 @@ function computeIecCandidatesForMode(ctx, modeKey) {
   return out;
 }
 
+function getRankedModeData(baseData, modesName, modeKey) {
+  const modes = baseData && baseData[modesName] && typeof baseData[modesName] === "object" ? baseData[modesName] : {};
+  const key = String(modeKey || "all");
+  return modes && modes[key] && typeof modes[key] === "object" ? modes[key] : null;
+}
+
+function computeRankedModeCandidates(ctx, modesName, modeKey, topNRaw) {
+  const out = new Set();
+  const baseData = getPreselectionForBase(ctx);
+  if (!baseData) return out;
+  const modeData = getRankedModeData(baseData, modesName, modeKey);
+  if (!modeData) return out;
+  const compactIdx = Array.isArray(modeData.case_idx) ? modeData.case_idx : [];
+  const compactScores = Array.isArray(modeData.scores) ? modeData.scores : [];
+  const compactZmax = Array.isArray(modeData.zmax) ? modeData.zmax : [];
+  const compactHarmonics = Array.isArray(modeData.harmonic) ? modeData.harmonic : [];
+  const baseCaseIds = Array.isArray(baseData.case_ids) ? baseData.case_ids : [];
+  const topNScope = String(modeData.top_n_scope || "global");
+  if (compactIdx.length <= 0 || baseCaseIds.length <= 0) return out;
+
+  const rows = [];
+  const seen = new Set();
+  const seenCases = new Set();
+  for (let i = 0; i < compactIdx.length; i++) {
+    const idx = Math.floor(Number(compactIdx[i]));
+    if (!Number.isFinite(idx) || idx < 0 || idx >= baseCaseIds.length) continue;
+    const cid = String(baseCaseIds[idx] || "");
+    if (!cid || !ctx.caseById.has(cid)) continue;
+    const score = Number(compactScores[i]);
+    if (!Number.isFinite(score)) continue;
+    const harmonic = Number.isFinite(Number(compactHarmonics[i])) ? Math.floor(Number(compactHarmonics[i])) : 999;
+    const seenKey = `${cid}|${harmonic}`;
+    if (seen.has(seenKey)) continue;
+    if (topNScope !== "per_harmonic" && seenCases.has(cid)) continue;
+    seen.add(seenKey);
+    seenCases.add(cid);
+    rows.push({
+      caseId: cid,
+      score,
+      zmax: Number.isFinite(Number(compactZmax[i])) ? Number(compactZmax[i]) : 0,
+      harmonic,
+    });
+  }
+  const sortRows = (a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    if (b.zmax !== a.zmax) return b.zmax - a.zmax;
+    if (a.harmonic !== b.harmonic) return a.harmonic - b.harmonic;
+    return String(a.caseId).localeCompare(String(b.caseId));
+  };
+  const topN = normalizeTopN(topNRaw);
+  if (topNScope === "per_harmonic" && topN > 0) {
+    const byHarmonic = new Map();
+    for (const row of rows) {
+      const key = String(row.harmonic);
+      if (!byHarmonic.has(key)) byHarmonic.set(key, []);
+      byHarmonic.get(key).push(row);
+    }
+    for (const group of byHarmonic.values()) {
+      group.sort(sortRows);
+      for (const row of group.slice(0, topN)) out.add(String(row.caseId));
+    }
+    return out;
+  }
+  rows.sort(sortRows);
+  const limited = topN > 0 ? rows.slice(0, topN) : rows;
+  for (const row of limited) out.add(String(row.caseId));
+  return out;
+}
+
 function isCaseSelectedByActiveMethod(state, caseId) {
   if (!state || !caseId) return false;
   const excluded = state.methodExcludedCases instanceof Set ? state.methodExcludedCases : new Set();
   if (excluded.has(caseId)) return false;
   const energinetSet = state.methodEnerginetCasesRaw instanceof Set ? state.methodEnerginetCasesRaw : new Set();
   const iecSet = state.methodIecCasesRaw instanceof Set ? state.methodIecCasesRaw : new Set();
+  const peakZSet = state.methodPeakZCasesRaw instanceof Set ? state.methodPeakZCasesRaw : new Set();
+  const riskSet = state.methodRiskCasesRaw instanceof Set ? state.methodRiskCasesRaw : new Set();
+  const outlierSet = state.methodOutlierCasesRaw instanceof Set ? state.methodOutlierCasesRaw : new Set();
   if (Boolean(state.methodEnerginetEnabled) && energinetSet.has(caseId)) return true;
   if (Boolean(state.methodIecEnabled) && iecSet.has(caseId)) return true;
+  if (Boolean(state.methodPeakZEnabled) && peakZSet.has(caseId)) return true;
+  if (Boolean(state.methodRiskEnabled) && riskSet.has(caseId)) return true;
+  if (Boolean(state.methodOutlierEnabled) && outlierSet.has(caseId)) return true;
   return false;
 }
 
@@ -666,7 +795,10 @@ function recomputeSelectedCases(ctx) {
   const st = ctx.state;
   const excluded = st.methodExcludedCases instanceof Set ? st.methodExcludedCases : new Set();
   const baseFromArgs = Number(latestArgs && latestArgs.f_base != null ? latestArgs.f_base : st.baseFrequencyHz);
-  const modeKey = Boolean(st.methodIecCapacitiveOnly) ? "capacitive" : "all";
+  const iecModeKey = Boolean(st.methodIecCapacitiveOnly) ? "capacitive" : "all";
+  const peakZModeKey = Boolean(st.methodPeakZCapacitiveOnly) ? "capacitive" : "all";
+  const riskModeKey = Boolean(st.methodRiskCapacitiveOnly) ? "capacitive" : "all";
+  const outlierModeKey = Boolean(st.methodOutlierCapacitiveOnly) ? "capacitive" : "all";
   const cacheKey = [
     Number.isFinite(baseFromArgs) ? Number(baseFromArgs) : 0,
     Number(st.energinetT2 || 0),
@@ -674,27 +806,60 @@ function recomputeSelectedCases(ctx) {
     Number(st.energinetT4 || 0),
     Number(st.methodEnerginetTopN || 0),
     Number(st.methodIecTopN || 0),
+    Number(st.methodPeakZTopN || 0),
+    Number(st.methodRiskTopN || 0),
+    Number(st.methodOutlierTopN || 0),
   ].join("|");
 
   let rawEnerginet = st.methodEnerginetCasesRaw instanceof Set ? st.methodEnerginetCasesRaw : new Set();
   let rawIecAll = st.methodIecCasesRawAll instanceof Set ? st.methodIecCasesRawAll : new Set();
   let rawIecCapacitive = st.methodIecCasesRawCapacitive instanceof Set ? st.methodIecCasesRawCapacitive : new Set();
+  let rawPeakZAll = st.methodPeakZCasesRawAll instanceof Set ? st.methodPeakZCasesRawAll : new Set();
+  let rawPeakZCapacitive = st.methodPeakZCasesRawCapacitive instanceof Set ? st.methodPeakZCasesRawCapacitive : new Set();
+  let rawRiskAll = st.methodRiskCasesRawAll instanceof Set ? st.methodRiskCasesRawAll : new Set();
+  let rawRiskCapacitive = st.methodRiskCasesRawCapacitive instanceof Set ? st.methodRiskCasesRawCapacitive : new Set();
+  let rawOutlierAll = st.methodOutlierCasesRawAll instanceof Set ? st.methodOutlierCasesRawAll : new Set();
+  let rawOutlierCapacitive = st.methodOutlierCasesRawCapacitive instanceof Set ? st.methodOutlierCasesRawCapacitive : new Set();
   const needRecompute =
     String(st.__methodRawCacheKey || "") !== cacheKey
     || !(st.methodEnerginetCasesRaw instanceof Set)
     || !(st.methodIecCasesRawAll instanceof Set)
-    || !(st.methodIecCasesRawCapacitive instanceof Set);
+    || !(st.methodIecCasesRawCapacitive instanceof Set)
+    || !(st.methodPeakZCasesRawAll instanceof Set)
+    || !(st.methodPeakZCasesRawCapacitive instanceof Set)
+    || !(st.methodRiskCasesRawAll instanceof Set)
+    || !(st.methodRiskCasesRawCapacitive instanceof Set)
+    || !(st.methodOutlierCasesRawAll instanceof Set)
+    || !(st.methodOutlierCasesRawCapacitive instanceof Set);
   if (needRecompute) {
     rawEnerginet = computeEnerginetCandidates(ctx);
     rawIecAll = computeIecCandidatesForMode(ctx, "all");
     rawIecCapacitive = computeIecCandidatesForMode(ctx, "capacitive");
+    rawPeakZAll = computeRankedModeCandidates(ctx, "peak_z_modes", "all", st.methodPeakZTopN);
+    rawPeakZCapacitive = computeRankedModeCandidates(ctx, "peak_z_modes", "capacitive", st.methodPeakZTopN);
+    rawRiskAll = computeRankedModeCandidates(ctx, "risk_modes", "all", st.methodRiskTopN);
+    rawRiskCapacitive = computeRankedModeCandidates(ctx, "risk_modes", "capacitive", st.methodRiskTopN);
+    rawOutlierAll = computeRankedModeCandidates(ctx, "outlier_modes", "all", st.methodOutlierTopN);
+    rawOutlierCapacitive = computeRankedModeCandidates(ctx, "outlier_modes", "capacitive", st.methodOutlierTopN);
     st.methodEnerginetCasesRaw = rawEnerginet;
     st.methodIecCasesRawAll = rawIecAll;
     st.methodIecCasesRawCapacitive = rawIecCapacitive;
+    st.methodPeakZCasesRawAll = rawPeakZAll;
+    st.methodPeakZCasesRawCapacitive = rawPeakZCapacitive;
+    st.methodRiskCasesRawAll = rawRiskAll;
+    st.methodRiskCasesRawCapacitive = rawRiskCapacitive;
+    st.methodOutlierCasesRawAll = rawOutlierAll;
+    st.methodOutlierCasesRawCapacitive = rawOutlierCapacitive;
     st.__methodRawCacheKey = cacheKey;
   }
-  const rawIec = modeKey === "capacitive" ? rawIecCapacitive : rawIecAll;
+  const rawIec = iecModeKey === "capacitive" ? rawIecCapacitive : rawIecAll;
+  const rawPeakZ = peakZModeKey === "capacitive" ? rawPeakZCapacitive : rawPeakZAll;
+  const rawRisk = riskModeKey === "capacitive" ? rawRiskCapacitive : rawRiskAll;
+  const rawOutlier = outlierModeKey === "capacitive" ? rawOutlierCapacitive : rawOutlierAll;
   st.methodIecCasesRaw = rawIec;
+  st.methodPeakZCasesRaw = rawPeakZ;
+  st.methodRiskCasesRaw = rawRisk;
+  st.methodOutlierCasesRaw = rawOutlier;
 
   const derived = new Set();
   if (Boolean(st.methodEnerginetEnabled)) {
@@ -704,6 +869,21 @@ function recomputeSelectedCases(ctx) {
   }
   if (Boolean(st.methodIecEnabled)) {
     for (const cid of rawIec) {
+      if (!excluded.has(cid)) derived.add(cid);
+    }
+  }
+  if (Boolean(st.methodPeakZEnabled)) {
+    for (const cid of rawPeakZ) {
+      if (!excluded.has(cid)) derived.add(cid);
+    }
+  }
+  if (Boolean(st.methodRiskEnabled)) {
+    for (const cid of rawRisk) {
+      if (!excluded.has(cid)) derived.add(cid);
+    }
+  }
+  if (Boolean(st.methodOutlierEnabled)) {
+    for (const cid of rawOutlier) {
       if (!excluded.has(cid)) derived.add(cid);
     }
   }
@@ -2254,6 +2434,12 @@ function bindPanelEvents(ctx, rows) {
       ctx.state.methodEnerginetEnabled = false;
       ctx.state.methodIecEnabled = false;
       ctx.state.methodIecCapacitiveOnly = false;
+      ctx.state.methodPeakZEnabled = false;
+      ctx.state.methodPeakZCapacitiveOnly = false;
+      ctx.state.methodRiskEnabled = false;
+      ctx.state.methodRiskCapacitiveOnly = false;
+      ctx.state.methodOutlierEnabled = false;
+      ctx.state.methodOutlierCapacitiveOnly = false;
       ctx.state.importStatus = "";
       applyPanelUiChange(ctx);
     });

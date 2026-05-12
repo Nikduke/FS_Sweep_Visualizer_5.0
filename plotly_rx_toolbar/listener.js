@@ -206,11 +206,23 @@ function syncSelectionControls(stateKey, force) {
     const cbIec = document.getElementById("rx-method-iec");
     const cbIecCapacitive = document.getElementById("rx-iec-capacitive");
     const iecCapacitiveLbl = document.getElementById("rx-iec-capacitive-label");
+    const cbPeakZ = document.getElementById("rx-method-peakz");
+    const cbPeakZCapacitive = document.getElementById("rx-peakz-capacitive");
+    const peakZCapacitiveLbl = document.getElementById("rx-peakz-capacitive-label");
+    const cbRisk = document.getElementById("rx-method-risk");
+    const cbRiskCapacitive = document.getElementById("rx-risk-capacitive");
+    const riskCapacitiveLbl = document.getElementById("rx-risk-capacitive-label");
+    const cbOutlier = document.getElementById("rx-method-outlier");
+    const cbOutlierCapacitive = document.getElementById("rx-outlier-capacitive");
+    const outlierCapacitiveLbl = document.getElementById("rx-outlier-capacitive-label");
     const t2 = document.getElementById("rx-t2");
     const t3 = document.getElementById("rx-t3");
     const t4 = document.getElementById("rx-t4");
     const enTopN = document.getElementById("rx-en-topn");
     const iecTopN = document.getElementById("rx-iec-topn");
+    const peakZTopN = document.getElementById("rx-peakz-topn");
+    const riskTopN = document.getElementById("rx-risk-topn");
+    const outlierTopN = document.getElementById("rx-outlier-topn");
     const freqInput = document.getElementById("rx-freq");
     const note = document.getElementById("rx-method-note");
     const summary = document.getElementById("rx-selection-summary");
@@ -237,7 +249,7 @@ function syncSelectionControls(stateKey, force) {
       cbIec.checked = preselectionAvailable && Boolean(st.iecEnabled);
       const cnt = Number(st.iecCandidateCount || 0);
       const lbl = document.getElementById("rx-method-iec-label");
-      if (lbl) lbl.textContent = `IEC (${cnt})`;
+      if (lbl) lbl.textContent = `RX hull (${cnt})`;
     }
     if (cbIecCapacitive) {
       const iecOn = preselectionAvailable && Boolean(st.iecEnabled);
@@ -247,6 +259,48 @@ function syncSelectionControls(stateKey, force) {
     if (iecCapacitiveLbl) {
       const capCount = Number(st.iecCapacitiveCandidateCount || 0);
       iecCapacitiveLbl.textContent = `Capacitive (${capCount})`;
+    }
+    if (cbPeakZ) {
+      cbPeakZ.disabled = !preselectionAvailable;
+      cbPeakZ.checked = preselectionAvailable && Boolean(st.peakZEnabled);
+      const lbl = document.getElementById("rx-method-peakz-label");
+      if (lbl) lbl.textContent = `Peak |Z| (${Number(st.peakZCandidateCount || 0)})`;
+    }
+    if (cbPeakZCapacitive) {
+      const on = preselectionAvailable && Boolean(st.peakZEnabled);
+      cbPeakZCapacitive.disabled = !on;
+      cbPeakZCapacitive.checked = on && Boolean(st.peakZCapacitiveOnly);
+    }
+    if (peakZCapacitiveLbl) {
+      peakZCapacitiveLbl.textContent = `Capacitive (${Number(st.peakZCapacitiveCandidateCount || 0)})`;
+    }
+    if (cbRisk) {
+      cbRisk.disabled = !preselectionAvailable;
+      cbRisk.checked = preselectionAvailable && Boolean(st.riskEnabled);
+      const lbl = document.getElementById("rx-method-risk-label");
+      if (lbl) lbl.textContent = `Risk (${Number(st.riskCandidateCount || 0)})`;
+    }
+    if (cbRiskCapacitive) {
+      const on = preselectionAvailable && Boolean(st.riskEnabled);
+      cbRiskCapacitive.disabled = !on;
+      cbRiskCapacitive.checked = on && Boolean(st.riskCapacitiveOnly);
+    }
+    if (riskCapacitiveLbl) {
+      riskCapacitiveLbl.textContent = `Capacitive (${Number(st.riskCapacitiveCandidateCount || 0)})`;
+    }
+    if (cbOutlier) {
+      cbOutlier.disabled = !preselectionAvailable;
+      cbOutlier.checked = preselectionAvailable && Boolean(st.outlierEnabled);
+      const lbl = document.getElementById("rx-method-outlier-label");
+      if (lbl) lbl.textContent = `Outliers (${Number(st.outlierCandidateCount || 0)})`;
+    }
+    if (cbOutlierCapacitive) {
+      const on = preselectionAvailable && Boolean(st.outlierEnabled);
+      cbOutlierCapacitive.disabled = !on;
+      cbOutlierCapacitive.checked = on && Boolean(st.outlierCapacitiveOnly);
+    }
+    if (outlierCapacitiveLbl) {
+      outlierCapacitiveLbl.textContent = `Capacitive (${Number(st.outlierCapacitiveCandidateCount || 0)})`;
     }
     if (t2) {
       t2.disabled = !preselectionAvailable;
@@ -267,6 +321,18 @@ function syncSelectionControls(stateKey, force) {
     if (iecTopN) {
       iecTopN.disabled = !preselectionAvailable;
       setInputValueSafe(iecTopN, Number(st.iecTopN || 0));
+    }
+    if (peakZTopN) {
+      peakZTopN.disabled = !preselectionAvailable;
+      setInputValueSafe(peakZTopN, Number(st.peakZTopN != null ? st.peakZTopN : 10));
+    }
+    if (riskTopN) {
+      riskTopN.disabled = !preselectionAvailable;
+      setInputValueSafe(riskTopN, Number(st.riskTopN != null ? st.riskTopN : 10));
+    }
+    if (outlierTopN) {
+      outlierTopN.disabled = !preselectionAvailable;
+      setInputValueSafe(outlierTopN, Number(st.outlierTopN != null ? st.outlierTopN : 10));
     }
     if (freqInput) {
       const hasFreq = Number.isFinite(rxCurrentFrequencyHz);
@@ -386,6 +452,42 @@ function pushIecCapacitiveMode(stateKey, flag) {
   }
 }
 
+function pushRankedTopN(stateKey, inputId, apiMethod) {
+  const inp = document.getElementById(inputId);
+  const n = Number(inp ? inp.value : NaN);
+  try {
+    const api = getSelectionApi(stateKey);
+    if (api && typeof api[apiMethod] === "function") {
+      api[apiMethod](n);
+    }
+  } catch (e) {
+    debugWarn(`pushRankedTopN.${apiMethod}`, e);
+  }
+}
+
+function pushRankedCapacitiveMode(stateKey, apiMethod, flag) {
+  try {
+    const api = getSelectionApi(stateKey);
+    if (api && typeof api[apiMethod] === "function") {
+      api[apiMethod](flag === true);
+    }
+  } catch (e) {
+    debugWarn(`pushRankedCapacitiveMode.${apiMethod}`, e);
+  }
+}
+
+function pushMethodEnabled(stateKey, apiMethod, flag) {
+  try {
+    const api = getSelectionApi(stateKey);
+    if (api && typeof api[apiMethod] === "function") {
+      api[apiMethod](flag === true);
+      syncSelectionControls(stateKey, true);
+    }
+  } catch (e) {
+    debugWarn(`pushMethodEnabled.${apiMethod}`, e);
+  }
+}
+
 function render() {
   const root = document.getElementById("app");
   if (!root) return;
@@ -415,6 +517,25 @@ function render() {
         border-radius: 10px;
         background: #f8fafc;
         overflow: hidden;
+      }
+      .rx-methods-details {
+        margin-top: 4px;
+      }
+      .rx-methods-summary {
+        cursor: pointer;
+        user-select: none;
+        color: #243047;
+        font-size: 11px;
+        font-weight: 700;
+        line-height: 1.2;
+        padding: 2px 1px 4px;
+      }
+      .rx-methods-table,
+      .rx-selection-table {
+        margin-top: 0;
+      }
+      .rx-selection-table {
+        margin-top: 4px;
       }
       .rx-label {
         display: flex;
@@ -492,6 +613,22 @@ function render() {
         height: 14px;
         margin: 0;
       }
+      .rx-help {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 14px;
+        height: 14px;
+        margin-left: 2px;
+        border: 1px solid #9aa7b8;
+        border-radius: 999px;
+        color: #6b7280;
+        font-size: 10px;
+        font-weight: 700;
+        line-height: 1;
+        cursor: help;
+        background: #fff;
+      }
       .rx-th {
         display: inline-flex;
         align-items: center;
@@ -537,36 +674,84 @@ function render() {
     </style>
     <div id="rx-step-root">
       <div class="rx-control-table">
-        <div class="rx-label">Frequency</div>
-        <div class="rx-row">
+        <div class="rx-label rx-label-last">Frequency</div>
+        <div class="rx-row rx-row-last">
           <button id="rx-prev" type="button" class="rx-btn">&#8592; Prev frequency</button>
           <button id="rx-next" type="button" class="rx-btn">Next frequency &#8594;</button>
           <label class="rx-th rx-input-wide">Set f (Hz) <input id="rx-freq" class="rx-freq" type="number" step="any" /></label>
           <button id="rx-freq-apply" type="button" class="rx-btn">Set</button>
         </div>
-        <div class="rx-label">Energinet</div>
-        <div class="rx-row">
-          <label class="rx-method-check">
-            <input id="rx-method-energinet" type="checkbox" />
-            <span id="rx-method-energinet-label">Energinet</span>
-          </label>
-          <label class="rx-th">T2 <input id="rx-t2" type="number" min="1" step="1" /></label>
-          <label class="rx-th">T3 <input id="rx-t3" type="number" min="1" step="1" /></label>
-          <label class="rx-th">T4 <input id="rx-t4" type="number" min="1" step="1" /></label>
-          <label class="rx-th rx-input-short">Top N <input id="rx-en-topn" type="number" min="0" step="1" value="0" /></label>
+      </div>
+      <details class="rx-methods-details" open>
+        <summary class="rx-methods-summary">Selection methods</summary>
+        <div class="rx-control-table rx-methods-table">
+          <div class="rx-label">Energinet</div>
+          <div class="rx-row">
+            <label class="rx-method-check">
+              <input id="rx-method-energinet" type="checkbox" />
+              <span id="rx-method-energinet-label">Energinet</span>
+              <span class="rx-help" title="Threshold screen: selects cases whose harmonic-band peak |Z| exceeds T2/T3/T4 near the 2nd, 3rd, and 4th harmonics. Top N keeps the worst threshold ratios." aria-label="Energinet method help">?</span>
+            </label>
+            <label class="rx-th">T2 <input id="rx-t2" type="number" min="1" step="1" /></label>
+            <label class="rx-th">T3 <input id="rx-t3" type="number" min="1" step="1" /></label>
+            <label class="rx-th">T4 <input id="rx-t4" type="number" min="1" step="1" /></label>
+            <label class="rx-th rx-input-short">Top N <input id="rx-en-topn" type="number" min="0" step="1" value="0" /></label>
+          </div>
+          <div class="rx-label">RX hull</div>
+          <div class="rx-row">
+            <label class="rx-method-check">
+              <input id="rx-method-iec" type="checkbox" />
+              <span id="rx-method-iec-label">RX hull</span>
+              <span class="rx-help" title="R/X envelope screen: per harmonic, each case contributes its max-|Z| R/X point; cases on the convex-hull boundary are selected. Capacitive rebuilds this hull using X < 0 points only." aria-label="RX hull method help">?</span>
+            </label>
+            <label class="rx-th rx-input-short">Top N <input id="rx-iec-topn" type="number" min="0" step="1" value="0" /></label>
+            <label class="rx-method-check">
+              <input id="rx-iec-capacitive" type="checkbox" />
+              <span id="rx-iec-capacitive-label">Capacitive (0)</span>
+            </label>
+          </div>
+          <div class="rx-label">Peak |Z|</div>
+          <div class="rx-row">
+            <label class="rx-method-check">
+              <input id="rx-method-peakz" type="checkbox" />
+              <span id="rx-method-peakz-label">Peak |Z|</span>
+              <span class="rx-help" title="Peak screen: ranks highest |Z| inside each harmonic band from 2nd to 6th. Top N/h selects Top N per harmonic, then unions cases. Capacitive uses X < 0 points only." aria-label="Peak Z method help">?</span>
+            </label>
+            <label class="rx-th rx-input-short">Top N/h <input id="rx-peakz-topn" type="number" min="0" step="1" value="10" /></label>
+            <label class="rx-method-check">
+              <input id="rx-peakz-capacitive" type="checkbox" />
+              <span id="rx-peakz-capacitive-label">Capacitive (0)</span>
+            </label>
+          </div>
+          <div class="rx-label">Risk</div>
+          <div class="rx-row">
+            <label class="rx-method-check">
+              <input id="rx-method-risk" type="checkbox" />
+              <span id="rx-method-risk-label">Risk</span>
+              <span class="rx-help" title="Composite resonance risk: combines normalized peak |Z|, robust prominence over cohort, area above median, damping proxy, and harmonic-center proximity. Capacitive uses X < 0 points only." aria-label="Risk method help">?</span>
+            </label>
+            <label class="rx-th rx-input-short">Top N <input id="rx-risk-topn" type="number" min="0" step="1" value="10" /></label>
+            <label class="rx-method-check">
+              <input id="rx-risk-capacitive" type="checkbox" />
+              <span id="rx-risk-capacitive-label">Capacitive (0)</span>
+            </label>
+          </div>
+          <div class="rx-label rx-label-last">Outliers</div>
+          <div class="rx-row rx-row-last">
+            <label class="rx-method-check">
+              <input id="rx-method-outlier" type="checkbox" />
+              <span id="rx-method-outlier-label">Outliers</span>
+              <span class="rx-help" title="Robust outlier screen: selects unusually high harmonic-band |Z| cases using MAD z-score, with percentile fallback when MAD collapses. Capacitive uses X < 0 points only." aria-label="Outliers method help">?</span>
+            </label>
+            <label class="rx-th rx-input-short">Top N <input id="rx-outlier-topn" type="number" min="0" step="1" value="10" /></label>
+            <label class="rx-method-check">
+              <input id="rx-outlier-capacitive" type="checkbox" />
+              <span id="rx-outlier-capacitive-label">Capacitive (0)</span>
+            </label>
+          </div>
         </div>
-        <div class="rx-label">IEC</div>
-        <div class="rx-row">
-          <label class="rx-method-check">
-            <input id="rx-method-iec" type="checkbox" />
-            <span id="rx-method-iec-label">IEC</span>
-          </label>
-          <label class="rx-th rx-input-short">Top N <input id="rx-iec-topn" type="number" min="0" step="1" value="0" /></label>
-          <label class="rx-method-check">
-            <input id="rx-iec-capacitive" type="checkbox" />
-            <span id="rx-iec-capacitive-label">Capacitive (0)</span>
-          </label>
-        </div>
+      </details>
+      <div class="rx-control-table rx-selection-table">
         <div class="rx-label rx-label-last">Selection</div>
         <div class="rx-row rx-row-last">
           <label class="rx-showonly">
@@ -590,11 +775,20 @@ function render() {
   const energinetCb = document.getElementById("rx-method-energinet");
   const iecCb = document.getElementById("rx-method-iec");
   const iecCapacitiveCb = document.getElementById("rx-iec-capacitive");
+  const peakZCb = document.getElementById("rx-method-peakz");
+  const peakZCapacitiveCb = document.getElementById("rx-peakz-capacitive");
+  const riskCb = document.getElementById("rx-method-risk");
+  const riskCapacitiveCb = document.getElementById("rx-risk-capacitive");
+  const outlierCb = document.getElementById("rx-method-outlier");
+  const outlierCapacitiveCb = document.getElementById("rx-outlier-capacitive");
   const t2 = document.getElementById("rx-t2");
   const t3 = document.getElementById("rx-t3");
   const t4 = document.getElementById("rx-t4");
   const enTopN = document.getElementById("rx-en-topn");
   const iecTopN = document.getElementById("rx-iec-topn");
+  const peakZTopN = document.getElementById("rx-peakz-topn");
+  const riskTopN = document.getElementById("rx-risk-topn");
+  const outlierTopN = document.getElementById("rx-outlier-topn");
   const clearSelectionBtn = document.getElementById("rx-clear-selection");
   const downloadCsvBtn = document.getElementById("rx-download-csv");
 
@@ -688,6 +882,36 @@ function render() {
       pushIecCapacitiveMode(stateKey, Boolean(iecCapacitiveCb.checked));
     });
   }
+  if (peakZCb) {
+    peakZCb.addEventListener("change", () => {
+      pushMethodEnabled(stateKey, "setPeakZEnabled", Boolean(peakZCb.checked));
+    });
+  }
+  if (peakZCapacitiveCb) {
+    peakZCapacitiveCb.addEventListener("change", () => {
+      pushRankedCapacitiveMode(stateKey, "setPeakZCapacitiveOnly", Boolean(peakZCapacitiveCb.checked));
+    });
+  }
+  if (riskCb) {
+    riskCb.addEventListener("change", () => {
+      pushMethodEnabled(stateKey, "setRiskEnabled", Boolean(riskCb.checked));
+    });
+  }
+  if (riskCapacitiveCb) {
+    riskCapacitiveCb.addEventListener("change", () => {
+      pushRankedCapacitiveMode(stateKey, "setRiskCapacitiveOnly", Boolean(riskCapacitiveCb.checked));
+    });
+  }
+  if (outlierCb) {
+    outlierCb.addEventListener("change", () => {
+      pushMethodEnabled(stateKey, "setOutlierEnabled", Boolean(outlierCb.checked));
+    });
+  }
+  if (outlierCapacitiveCb) {
+    outlierCapacitiveCb.addEventListener("change", () => {
+      pushRankedCapacitiveMode(stateKey, "setOutlierCapacitiveOnly", Boolean(outlierCapacitiveCb.checked));
+    });
+  }
 
   const thresholdInputs = [t2, t3, t4].filter(Boolean);
   for (const inp of thresholdInputs) {
@@ -709,6 +933,9 @@ function render() {
   const topNInputs = [
     { el: enTopN, push: () => pushEnerginetTopN(stateKey) },
     { el: iecTopN, push: () => pushIecTopN(stateKey) },
+    { el: peakZTopN, push: () => pushRankedTopN(stateKey, "rx-peakz-topn", "setPeakZTopN") },
+    { el: riskTopN, push: () => pushRankedTopN(stateKey, "rx-risk-topn", "setRiskTopN") },
+    { el: outlierTopN, push: () => pushRankedTopN(stateKey, "rx-outlier-topn", "setOutlierTopN") },
   ].filter((row) => Boolean(row.el));
   for (const row of topNInputs) {
     const el = row.el;
@@ -741,7 +968,7 @@ window.addEventListener("message", (event) => {
 });
 
 sendToStreamlit("streamlit:componentReady", { apiVersion: 1 });
-sendToStreamlit("streamlit:setFrameHeight", { height: 112 });
+sendToStreamlit("streamlit:setFrameHeight", { height: 220 });
 
 window.addEventListener("beforeunload", () => {
   clearSelectionSyncBindings();

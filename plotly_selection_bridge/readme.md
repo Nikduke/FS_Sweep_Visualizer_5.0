@@ -46,10 +46,12 @@ Related sibling components (same repo):
 - `bin_width_hz_default` (float)
 - `rx_status_dom_id` (string): optional parent DOM id for scatter status text
 - `rx_freq_steps` (int): fallback step count for status text
-- `preselection_payload` (object): server-precomputed Energinet/IEC candidate data
-  - compact format (`format=compact_v2`) is the active payload contract:
+- `preselection_payload` (object): server-precomputed selection-method candidate data
+  - compact format (`format=compact_v3`) is the active payload contract:
     - `case_ids` + array metrics (`energinet.z2/z3/z4/...`)
-    - IEC `all` and `capacitive` modes encoded with `case_idx` + `vertex_orders`
+    - `RX hull` (`iec_modes`) `all` and `capacitive` modes encoded with `case_idx` + `vertex_orders`
+    - `Peak |Z|`, `Risk`, and `Outliers` modes encoded with `case_idx`, `scores`, `zmax`, and `harmonic`
+    - `Peak |Z|` uses `top_n_scope=per_harmonic`, so `Top N/h` is applied inside each harmonic group before unioning selected cases
 - `energinet_t2_default` (float)
 - `energinet_t3_default` (float)
 - `energinet_t4_default` (float)
@@ -97,8 +99,9 @@ Related sibling components (same repo):
 14. Maintains source-aware selection model:
     - manual selections (scatter clicks/import/remove)
     - Energinet method selections
-    - IEC method selections
-    - method toggles, method-specific `Top N`, IEC capacitive mode, and Energinet thresholds are applied client-side without rerun.
+    - RX hull method selections
+    - Peak |Z| / Risk / Outliers method selections
+    - method toggles, method-specific `Top N`, method-specific capacitive mode, and Energinet thresholds are applied client-side without rerun.
 
 ## State Model
 

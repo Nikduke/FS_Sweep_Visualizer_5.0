@@ -103,6 +103,17 @@ function notifyExternalSelectionStateChanged(ctx, scope) {
   }
 }
 
+function anyMethodEnabled(state) {
+  const st = state && typeof state === "object" ? state : {};
+  return Boolean(
+    st.methodEnerginetEnabled
+    || st.methodIecEnabled
+    || st.methodPeakZEnabled
+    || st.methodRiskEnabled
+    || st.methodOutlierEnabled,
+  );
+}
+
 function registerExternalSelectionApi(ctx) {
   if (!ctx) return;
   const key = `${ctx.dataId}|${ctx.chartId}`;
@@ -121,6 +132,15 @@ function registerExternalSelectionApi(ctx) {
       const iecRawSet = st.methodIecCasesRaw instanceof Set ? st.methodIecCasesRaw : new Set();
       const iecAllRawSet = st.methodIecCasesRawAll instanceof Set ? st.methodIecCasesRawAll : iecRawSet;
       const iecCapacitiveRawSet = st.methodIecCasesRawCapacitive instanceof Set ? st.methodIecCasesRawCapacitive : iecRawSet;
+      const peakZRawSet = st.methodPeakZCasesRaw instanceof Set ? st.methodPeakZCasesRaw : new Set();
+      const peakZAllRawSet = st.methodPeakZCasesRawAll instanceof Set ? st.methodPeakZCasesRawAll : peakZRawSet;
+      const peakZCapacitiveRawSet = st.methodPeakZCasesRawCapacitive instanceof Set ? st.methodPeakZCasesRawCapacitive : peakZRawSet;
+      const riskRawSet = st.methodRiskCasesRaw instanceof Set ? st.methodRiskCasesRaw : new Set();
+      const riskAllRawSet = st.methodRiskCasesRawAll instanceof Set ? st.methodRiskCasesRawAll : riskRawSet;
+      const riskCapacitiveRawSet = st.methodRiskCasesRawCapacitive instanceof Set ? st.methodRiskCasesRawCapacitive : riskRawSet;
+      const outlierRawSet = st.methodOutlierCasesRaw instanceof Set ? st.methodOutlierCasesRaw : new Set();
+      const outlierAllRawSet = st.methodOutlierCasesRawAll instanceof Set ? st.methodOutlierCasesRawAll : outlierRawSet;
+      const outlierCapacitiveRawSet = st.methodOutlierCasesRawCapacitive instanceof Set ? st.methodOutlierCasesRawCapacitive : outlierRawSet;
       const allowed = computeAllowedSet(curCtx);
       const selectedRows = selectedRowsForTable(curCtx, allowed);
       const hiddenSelectedCount = selectedRows.filter((row) => row.hidden).length;
@@ -135,6 +155,15 @@ function registerExternalSelectionApi(ctx) {
       const iecVisible = countVisible(iecRawSet);
       const iecAllVisible = countVisible(iecAllRawSet);
       const iecCapacitiveVisible = countVisible(iecCapacitiveRawSet);
+      const peakZVisible = countVisible(peakZRawSet);
+      const peakZAllVisible = countVisible(peakZAllRawSet);
+      const peakZCapacitiveVisible = countVisible(peakZCapacitiveRawSet);
+      const riskVisible = countVisible(riskRawSet);
+      const riskAllVisible = countVisible(riskAllRawSet);
+      const riskCapacitiveVisible = countVisible(riskCapacitiveRawSet);
+      const outlierVisible = countVisible(outlierRawSet);
+      const outlierAllVisible = countVisible(outlierAllRawSet);
+      const outlierCapacitiveVisible = countVisible(outlierCapacitiveRawSet);
       const pre = getPreselectionPayload();
       const rxInfo = typeof getScatterFrequencyInfo === "function" ? getScatterFrequencyInfo() : null;
       return {
@@ -150,15 +179,33 @@ function registerExternalSelectionApi(ctx) {
         energinetEnabled: Boolean(st.methodEnerginetEnabled),
         iecEnabled: Boolean(st.methodIecEnabled),
         iecCapacitiveOnly: Boolean(st.methodIecCapacitiveOnly),
+        peakZEnabled: Boolean(st.methodPeakZEnabled),
+        peakZCapacitiveOnly: Boolean(st.methodPeakZCapacitiveOnly),
+        riskEnabled: Boolean(st.methodRiskEnabled),
+        riskCapacitiveOnly: Boolean(st.methodRiskCapacitiveOnly),
+        outlierEnabled: Boolean(st.methodOutlierEnabled),
+        outlierCapacitiveOnly: Boolean(st.methodOutlierCapacitiveOnly),
         energinetT2: Number(st.energinetT2 || 0),
         energinetT3: Number(st.energinetT3 || 0),
         energinetT4: Number(st.energinetT4 || 0),
         energinetTopN: Number(st.methodEnerginetTopN || 0),
         iecTopN: Number(st.methodIecTopN || 0),
+        peakZTopN: Number(st.methodPeakZTopN || 0),
+        riskTopN: Number(st.methodRiskTopN || 0),
+        outlierTopN: Number(st.methodOutlierTopN || 0),
         energinetCandidateCount: Number(energinetVisible),
         iecCandidateCount: Number(iecVisible),
         iecAllCandidateCount: Number(iecAllVisible),
         iecCapacitiveCandidateCount: Number(iecCapacitiveVisible),
+        peakZCandidateCount: Number(peakZVisible),
+        peakZAllCandidateCount: Number(peakZAllVisible),
+        peakZCapacitiveCandidateCount: Number(peakZCapacitiveVisible),
+        riskCandidateCount: Number(riskVisible),
+        riskAllCandidateCount: Number(riskAllVisible),
+        riskCapacitiveCandidateCount: Number(riskCapacitiveVisible),
+        outlierCandidateCount: Number(outlierVisible),
+        outlierAllCandidateCount: Number(outlierAllVisible),
+        outlierCapacitiveCandidateCount: Number(outlierCapacitiveVisible),
         rxCurrentFrequencyHz: Number(rxInfo && Number.isFinite(rxInfo.freqHz) ? rxInfo.freqHz : Number.NaN),
         rxFrequencyMinHz: Number(rxInfo && Number.isFinite(rxInfo.minHz) ? rxInfo.minHz : Number.NaN),
         rxFrequencyMaxHz: Number(rxInfo && Number.isFinite(rxInfo.maxHz) ? rxInfo.maxHz : Number.NaN),
@@ -181,7 +228,7 @@ function registerExternalSelectionApi(ctx) {
       const nextCtx = ensureContext();
       if (!nextCtx) return false;
       nextCtx.state.methodEnerginetEnabled = Boolean(flag);
-      if (!nextCtx.state.methodEnerginetEnabled && !nextCtx.state.methodIecEnabled) {
+      if (!anyMethodEnabled(nextCtx.state)) {
         nextCtx.state.methodExcludedCases = new Set();
       }
       recomputeSelectedCases(nextCtx);
@@ -199,7 +246,7 @@ function registerExternalSelectionApi(ctx) {
       if (!nextCtx.state.methodIecEnabled) {
         nextCtx.state.methodIecCapacitiveOnly = false;
       }
-      if (!nextCtx.state.methodEnerginetEnabled && !nextCtx.state.methodIecEnabled) {
+      if (!anyMethodEnabled(nextCtx.state)) {
         nextCtx.state.methodExcludedCases = new Set();
       }
       recomputeSelectedCases(nextCtx);
@@ -208,6 +255,48 @@ function registerExternalSelectionApi(ctx) {
       renderPanel();
       applyStateToPlots();
       notifyExternalSelectionStateChanged(nextCtx, "setIecEnabled.notify");
+      return true;
+    },
+    setPeakZEnabled: (flag) => {
+      const nextCtx = ensureContext();
+      if (!nextCtx) return false;
+      nextCtx.state.methodPeakZEnabled = Boolean(flag);
+      if (!nextCtx.state.methodPeakZEnabled) nextCtx.state.methodPeakZCapacitiveOnly = false;
+      if (!anyMethodEnabled(nextCtx.state)) nextCtx.state.methodExcludedCases = new Set();
+      recomputeSelectedCases(nextCtx);
+      nextCtx.state.importStatus = "";
+      bumpStateVersion(nextCtx.state);
+      renderPanel();
+      applyStateToPlots();
+      notifyExternalSelectionStateChanged(nextCtx, "setPeakZEnabled.notify");
+      return true;
+    },
+    setRiskEnabled: (flag) => {
+      const nextCtx = ensureContext();
+      if (!nextCtx) return false;
+      nextCtx.state.methodRiskEnabled = Boolean(flag);
+      if (!nextCtx.state.methodRiskEnabled) nextCtx.state.methodRiskCapacitiveOnly = false;
+      if (!anyMethodEnabled(nextCtx.state)) nextCtx.state.methodExcludedCases = new Set();
+      recomputeSelectedCases(nextCtx);
+      nextCtx.state.importStatus = "";
+      bumpStateVersion(nextCtx.state);
+      renderPanel();
+      applyStateToPlots();
+      notifyExternalSelectionStateChanged(nextCtx, "setRiskEnabled.notify");
+      return true;
+    },
+    setOutlierEnabled: (flag) => {
+      const nextCtx = ensureContext();
+      if (!nextCtx) return false;
+      nextCtx.state.methodOutlierEnabled = Boolean(flag);
+      if (!nextCtx.state.methodOutlierEnabled) nextCtx.state.methodOutlierCapacitiveOnly = false;
+      if (!anyMethodEnabled(nextCtx.state)) nextCtx.state.methodExcludedCases = new Set();
+      recomputeSelectedCases(nextCtx);
+      nextCtx.state.importStatus = "";
+      bumpStateVersion(nextCtx.state);
+      renderPanel();
+      applyStateToPlots();
+      notifyExternalSelectionStateChanged(nextCtx, "setOutlierEnabled.notify");
       return true;
     },
     setEnerginetThresholds: (thresholds) => {
@@ -253,6 +342,42 @@ function registerExternalSelectionApi(ctx) {
       notifyExternalSelectionStateChanged(nextCtx, "setIecTopN.notify");
       return true;
     },
+    setPeakZTopN: (rawVal) => {
+      const nextCtx = ensureContext();
+      if (!nextCtx) return false;
+      nextCtx.state.methodPeakZTopN = normalizeTopN(rawVal);
+      recomputeSelectedCases(nextCtx);
+      nextCtx.state.importStatus = "";
+      bumpStateVersion(nextCtx.state);
+      renderPanel();
+      applyStateToPlots();
+      notifyExternalSelectionStateChanged(nextCtx, "setPeakZTopN.notify");
+      return true;
+    },
+    setRiskTopN: (rawVal) => {
+      const nextCtx = ensureContext();
+      if (!nextCtx) return false;
+      nextCtx.state.methodRiskTopN = normalizeTopN(rawVal);
+      recomputeSelectedCases(nextCtx);
+      nextCtx.state.importStatus = "";
+      bumpStateVersion(nextCtx.state);
+      renderPanel();
+      applyStateToPlots();
+      notifyExternalSelectionStateChanged(nextCtx, "setRiskTopN.notify");
+      return true;
+    },
+    setOutlierTopN: (rawVal) => {
+      const nextCtx = ensureContext();
+      if (!nextCtx) return false;
+      nextCtx.state.methodOutlierTopN = normalizeTopN(rawVal);
+      recomputeSelectedCases(nextCtx);
+      nextCtx.state.importStatus = "";
+      bumpStateVersion(nextCtx.state);
+      renderPanel();
+      applyStateToPlots();
+      notifyExternalSelectionStateChanged(nextCtx, "setOutlierTopN.notify");
+      return true;
+    },
     setIecCapacitiveOnly: (flag) => {
       const nextCtx = ensureContext();
       if (!nextCtx) return false;
@@ -267,6 +392,42 @@ function registerExternalSelectionApi(ctx) {
       renderPanel();
       applyStateToPlots();
       notifyExternalSelectionStateChanged(nextCtx, "setIecCapacitiveOnly.notify");
+      return true;
+    },
+    setPeakZCapacitiveOnly: (flag) => {
+      const nextCtx = ensureContext();
+      if (!nextCtx) return false;
+      nextCtx.state.methodPeakZCapacitiveOnly = nextCtx.state.methodPeakZEnabled ? flag === true : false;
+      recomputeSelectedCases(nextCtx);
+      nextCtx.state.importStatus = "";
+      bumpStateVersion(nextCtx.state);
+      renderPanel();
+      applyStateToPlots();
+      notifyExternalSelectionStateChanged(nextCtx, "setPeakZCapacitiveOnly.notify");
+      return true;
+    },
+    setRiskCapacitiveOnly: (flag) => {
+      const nextCtx = ensureContext();
+      if (!nextCtx) return false;
+      nextCtx.state.methodRiskCapacitiveOnly = nextCtx.state.methodRiskEnabled ? flag === true : false;
+      recomputeSelectedCases(nextCtx);
+      nextCtx.state.importStatus = "";
+      bumpStateVersion(nextCtx.state);
+      renderPanel();
+      applyStateToPlots();
+      notifyExternalSelectionStateChanged(nextCtx, "setRiskCapacitiveOnly.notify");
+      return true;
+    },
+    setOutlierCapacitiveOnly: (flag) => {
+      const nextCtx = ensureContext();
+      if (!nextCtx) return false;
+      nextCtx.state.methodOutlierCapacitiveOnly = nextCtx.state.methodOutlierEnabled ? flag === true : false;
+      recomputeSelectedCases(nextCtx);
+      nextCtx.state.importStatus = "";
+      bumpStateVersion(nextCtx.state);
+      renderPanel();
+      applyStateToPlots();
+      notifyExternalSelectionStateChanged(nextCtx, "setOutlierCapacitiveOnly.notify");
       return true;
     },
     stepRxFrequency: (delta) => {
@@ -299,6 +460,12 @@ function registerExternalSelectionApi(ctx) {
       nextCtx.state.methodEnerginetEnabled = false;
       nextCtx.state.methodIecEnabled = false;
       nextCtx.state.methodIecCapacitiveOnly = false;
+      nextCtx.state.methodPeakZEnabled = false;
+      nextCtx.state.methodPeakZCapacitiveOnly = false;
+      nextCtx.state.methodRiskEnabled = false;
+      nextCtx.state.methodRiskCapacitiveOnly = false;
+      nextCtx.state.methodOutlierEnabled = false;
+      nextCtx.state.methodOutlierCapacitiveOnly = false;
       recomputeSelectedCases(nextCtx);
       nextCtx.state.importStatus = "";
       bumpStateVersion(nextCtx.state);

@@ -29,7 +29,7 @@ Core design:
   - `fsCaseUiStateChanged` notifies sibling components after no-rerun state changes.
 - selected-location preselection payload is cached in session state by:
   - `preselection_payload:{data_id}:{seq_label}:{location}` (single active base payload, overwritten on base switch).
-  - payload sent to JS uses compact array/index format (`compact_v2`) to reduce rerun transfer size.
+  - payload sent to JS uses compact array/index format (`compact_v3`) to reduce rerun transfer size.
 - on chart-context switches (`base frequency`, `location`, `Positive/Zero` sequence), heavy sequence caches are evicted before rebuild to reduce peak-memory spikes on constrained hosts.
 - non-active sequence/location/chart cache entries are pruned proactively in the same data session.
 - uploaded workbooks are parsed once and cached as live `SweepSheet` objects in session state:
@@ -72,6 +72,8 @@ Core design:
 2. `Analysis context`
    - `Sequence`
    - `Base frequency`
+     - defaults once per new workbook from max loaded frequency (`<=330 Hz` => `50 Hz`, `<=390 Hz` => `60 Hz`)
+     - user changes are preserved until another workbook is loaded
    - `Location`
    - helper text: changing these rebuilds plots
 3. `Case Filters & Selection`
@@ -112,12 +114,24 @@ Rendered by `plotly_selection_bridge`:
   - show harmonic lines
   - bin width (Hz)
   - harmonic/bin guide lines are generated from full baseline harmonic range (not from current zoom window)
-- method controls (in the scatter toolbar `Preselect` group):
+- method controls (in the scatter toolbar default-open `Selection methods` section):
   - `Energinet` toggle + editable `T2/T3/T4` + `Top N`
-  - `IEC` toggle + `Top N`
-  - `Capacitive (N)` IEC filter, which recomputes IEC candidates from negative-X harmonic points only (`X < 0`)
+  - `RX hull` toggle + `Top N` + `Capacitive (N)`
+  - `Peak |Z|` toggle + `Top N/h` + `Capacitive (N)`
+  - `Risk` toggle + `Top N` + `Capacitive (N)`
+  - `Outliers` toggle + `Top N` + `Capacitive (N)`
+  - capacitive modes are computed inside each method from negative-X points (`X < 0`), not by post-filtering normal results
   - method toggles append/remove method-sourced candidates from selection state without rerun
   - `Top N` is method-specific (`0` => all candidates for that method)
+
+## Selection Method Formulas
+
+- `Energinet`: ranks cases where harmonic-band peak `|Z|` exceeds editable thresholds at 2nd/3rd/4th harmonic. Score is the maximum threshold ratio.
+- `RX hull`: for each harmonic from 2 to available range capped at 6, finds each case's harmonic-band peak `|Z|` point in R/X space and selects convex-hull vertices. Ranking uses earliest selected harmonic, then vertex count.
+- `Peak |Z|`: ranks cases separately within each harmonic band over harmonics 2..6. `Top N/h` selects the top N cases per harmonic and uses the union of those cases.
+- `Risk`: ranks cases by weighted score from normalized peak `|Z|`, robust local prominence over cohort median/MAD, area above cohort median, damping proxy `log1p(|Z| / max(|R|, 1))`, and proximity to harmonic center.
+- `Outliers`: selects robust outliers by harmonic-band peak `|Z|` using MAD z-score threshold `3.5`; if MAD collapses, uses 95th percentile fallback.
+- For `RX hull`, `Peak |Z|`, `Risk`, and `Outliers`, `Capacitive` mode recomputes the method using only candidate points with `X < 0`; for `Peak |Z|`, this is still Top N per harmonic.
 
 ## Visibility And Legend Rules
 
