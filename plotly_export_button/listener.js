@@ -1,3 +1,5 @@
+const CASE_UI_API_GLOBAL = "__fsCaseUiApi";
+
 function sendToStreamlit(type, payload) {
   try {
     window.parent.postMessage(
@@ -52,6 +54,16 @@ function asString(name, fallback) {
   return String(v);
 }
 
+function asBool(name, fallback) {
+  const v = argValue(name);
+  if (v == null) return Boolean(fallback);
+  if (typeof v === "boolean") return v;
+  const txt = String(v).trim().toLowerCase();
+  if (["true", "1", "yes", "y"].includes(txt)) return true;
+  if (["false", "0", "no", "n"].includes(txt)) return false;
+  return Boolean(fallback);
+}
+
 function escapeHtml(txt) {
   return String(txt == null ? "" : txt)
     .replace(/&/g, "&amp;")
@@ -71,6 +83,8 @@ function exportArgs() {
     legendPad: Math.round(asNumber("legend_padding_px", 18)),
     legendEntryWidth: Math.max(1, Math.round(asNumber("legend_entrywidth", 120))),
     plotIndex: Math.max(0, Math.round(asNumber("plot_index", 0))),
+    stateKey: asString("state_key", ""),
+    selectedCaseLegend: asBool("selected_case_legend", false),
     filename: asString("filename", "plot.png"),
     fallbackLegendFontSize,
     legendFontFamily: asString("legend_font_family", "Open Sans, verdana, arial, sans-serif"),
@@ -105,6 +119,21 @@ function parentPlotContext(plotIndex) {
   return gd ? { Plotly, gd } : null;
 }
 
+function getSelectionApi(stateKey) {
+  try {
+    const rootWin = window.parent;
+    const apiStore = rootWin && rootWin[CASE_UI_API_GLOBAL] && typeof rootWin[CASE_UI_API_GLOBAL] === "object"
+      ? rootWin[CASE_UI_API_GLOBAL]
+      : null;
+    if (!apiStore) return null;
+    const api = apiStore[String(stateKey || "")];
+    return api && typeof api === "object" ? api : null;
+  } catch (e) {
+    debugWarn("getSelectionApi", e);
+  }
+  return null;
+}
+
 function exportableData(gd) {
   const data = Array.isArray(gd.data) ? gd.data : [];
   return data.map((tr) => {
@@ -112,6 +141,47 @@ function exportableData(gd) {
     if (t.type === "scattergl") t.type = "scatter";
     return t;
   });
+}
+
+function markerColorAt(markerColor, idx, fallbackColor) {
+  if (Array.isArray(markerColor)) {
+    const v = markerColor[idx];
+    return v == null || String(v) === "" ? fallbackColor : v;
+  }
+  if (markerColor != null && String(markerColor) !== "") return markerColor;
+  return fallbackColor;
+}
+
+function selectedCaseLegendItemsForData(data, cfg) {
+  if (!cfg.selectedCaseLegend || !cfg.stateKey) return [];
+  const api = getSelectionApi(cfg.stateKey);
+  if (!api || typeof api.getState !== "function") return [];
+  const st = api.getState();
+  const selectedRows = st && Array.isArray(st.selectedRows) ? st.selectedRows : [];
+  if (selectedRows.length === 0) return [];
+
+  const colorByCase = new Map();
+  for (const tr of data) {
+    if (!tr || !Array.isArray(tr.ids)) continue;
+    const marker = tr.marker && typeof tr.marker === "object" ? tr.marker : {};
+    const markerColor = marker.color;
+    for (let i = 0; i < tr.ids.length; i++) {
+      const cid = String(tr.ids[i] || "");
+      if (!cid || colorByCase.has(cid)) continue;
+      colorByCase.set(cid, markerColorAt(markerColor, i, cfg.fallbackColor));
+    }
+  }
+
+  const seen = new Set();
+  const items = [];
+  for (const row of selectedRows) {
+    const cid = String(row && row.caseId != null ? row.caseId : "");
+    if (!cid || seen.has(cid) || (row && row.hidden === true)) continue;
+    seen.add(cid);
+    const display = String(row && row.displayCase ? row.displayCase : cid);
+    items.push({ name: display, color: colorByCase.get(cid) || cfg.fallbackColor });
+  }
+  return items;
 }
 
 function legendItemsForData(data, fallbackColor) {
@@ -269,7 +339,8 @@ async function doExport() {
     );
 
     const data2 = exportableData(gd);
-    const legendItems = legendItemsForData(data2, cfg.fallbackColor);
+    const selectedLegendItems = selectedCaseLegendItemsForData(data2, cfg);
+    const legendItems = selectedLegendItems.length > 0 ? selectedLegendItems : legendItemsForData(data2, cfg.fallbackColor);
 
     const usableW = Math.max(1, widthPx - leftMarginPx - cfg.rightMargin);
     const maxTextW = measureMaxLegendTextWidth(legendItems, legendFontSize, cfg.legendFontFamily);

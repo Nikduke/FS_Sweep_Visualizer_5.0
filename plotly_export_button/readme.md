@@ -1,11 +1,12 @@
 # plotly_export_button
 
-Mini Streamlit component used by `fs_sweep_app_spline.py` to render the `Export PNG` button above each enabled line plot (`X`, `R`, `X/R`).
+Mini Streamlit component used by `fs_sweep_app_spline.py` to render the `Export PNG` button above enabled plots (`R vs X`, `X`, `R`, `X/R`).
 
 Responsibilities:
 - render compact bordered button UI with focus-visible and disabled/loading states
-- collect active Plotly trace visibility/style from the target line plot
+- collect active Plotly trace visibility/style from the target plot
 - generate full-legend PNG in browser with manual legend layout
+- for `R vs X`, build the manual legend from selected visible cases via the shared selection API
 
 No Streamlit rerun is triggered by button clicks.
 
@@ -22,5 +23,5 @@ Current status:
 - export is positioned above the plot body, not in the sidebar `Show plots` section
 - button label is `Export PNG`
 - button text changes to `Exporting PNG...` while browser-side export runs
-- continues to export from the currently rendered line-plot state
+- continues to export from the currently rendered plot state
 - defensive export helpers use debug-only warnings instead of silent catches

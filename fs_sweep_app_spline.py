@@ -1661,12 +1661,16 @@ def _render_client_png_download(
     plot_height: int,
     legend_entrywidth: int,
     plot_index: int,
+    state_key: str = "",
+    selected_case_legend: bool = False,
 ):
     export_contract = {
         "scale": int(scale),
         "plot_height": int(plot_height),
         "legend_entrywidth": int(legend_entrywidth),
         "plot_index": int(plot_index),
+        "state_key": str(state_key),
+        "selected_case_legend": bool(selected_case_legend),
         "top_margin_px": int(TOP_MARGIN_PX),
         "bottom_axis_px": int(BOTTOM_AXIS_PX),
         "legend_padding_px": int(LEGEND_PADDING_PX),
@@ -1696,6 +1700,8 @@ def _render_client_png_download(
         {
             "filename": str(filename),
             "button_label": str(button_label),
+            "state_key": str(state_key),
+            "selected_case_legend": bool(selected_case_legend),
         },
         ensure_ascii=True,
         separators=(",", ":"),
@@ -2562,6 +2568,8 @@ def _render_plot_header(
             plot_height=int(plot_height),
             legend_entrywidth=int(legend_entrywidth),
             plot_index=int(export_item.get("plot_index", 0)),
+            state_key=str(export_item.get("state_key", "")),
+            selected_case_legend=bool(export_item.get("selected_case_legend", False)),
         )
 
 
@@ -2619,7 +2627,18 @@ def _render_rx_scatter_plot(
         return "", 0
 
     sequence_suffix = "1" if str(ctx.seq_label) == "Positive" else "0"
-    _render_plot_header(f"R{sequence_suffix} vs X{sequence_suffix} scatter")
+    rx_plot_index = int(plot_order.index("rx")) if "rx" in plot_order else 0
+    rx_height = max(420, int(round(float(ctx.plot_height) * float(RX_SCATTER_HEIGHT_FACTOR))))
+    _render_plot_header(
+        f"R{sequence_suffix} vs X{sequence_suffix} scatter",
+        export_item={
+            "filename": f"R{sequence_suffix}_vs_X{sequence_suffix}_scatter_selected_legend.png",
+            "plot_index": int(rx_plot_index),
+            "state_key": f"{str(ctx.data_id)}|{str(ctx.chart_id)}",
+            "selected_case_legend": True,
+        },
+        plot_height=int(rx_height),
+    )
 
     rx_fig, rx_freq_steps = _get_or_build_cached_rx_scatter_figure(
         data_id=str(ctx.data_id),
@@ -2638,7 +2657,6 @@ def _render_rx_scatter_plot(
         config=download_config,
         key="plot_rx",
     )
-    rx_plot_index = int(plot_order.index("rx")) if "rx" in plot_order else 0
     _render_rx_client_step_buttons(rx_plot_index, data_id=ctx.data_id, chart_id=ctx.chart_id)
     return "", int(rx_freq_steps)
 

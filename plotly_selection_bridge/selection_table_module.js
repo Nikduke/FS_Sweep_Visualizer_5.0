@@ -170,6 +170,11 @@ function registerExternalSelectionApi(ctx) {
         stateVersion: Number(st.__applyVersion != null ? st.__applyVersion : 0),
         showOnlySelected: st.showOnlySelected === true,
         selectedCount: Number(st.selectedCases instanceof Set ? st.selectedCases.size : 0),
+        selectedRows: selectedRows.map((row) => ({
+          caseId: String(row.caseId || ""),
+          displayCase: String(row.displayCase || row.caseId || ""),
+          hidden: Boolean(row.hidden),
+        })),
         visibleSelectedCount: Number(Math.max(0, selectedRows.length - hiddenSelectedCount)),
         hiddenSelectedCount: Number(hiddenSelectedCount),
         visibleCaseCount: Number(allowed.size || 0),

@@ -51,11 +51,12 @@ Core design:
 
 ## Export Contract
 
-- Line-plot PNG export uses `plotly_export_button`.
-- The custom export button is shown above each enabled line plot as `Export PNG`.
+- Plot PNG export uses `plotly_export_button`.
+- The custom export button is shown above each enabled plot as `Export PNG`.
 - This custom export exists because Plotly's default modebar export can cut long legends.
 - Python passes export sizing/layout values as one `export_contract` object.
 - The export component uses the currently rendered Plotly DOM state, so selected-only visibility/legend styling is reflected in exported PNGs.
+- Scatter export uses the shared selection API to build a manual legend from currently selected visible cases.
 - Export component keys are stable by plot filename/label to reduce remount flicker while plot index and layout are passed through the current contract args.
 
 ## Static Checks
@@ -204,6 +205,7 @@ Line x-axis implementation:
 - legend column width is auto-calculated internally (not user-configured in sidebar).
 - modebar export remains available.
 - line full-legend export (`Export PNG` above each line plot) reads current line visibility/style state.
+- scatter export (`Export PNG` above `R vs X`) reads current scatter state and adds a manual legend for selected visible cases.
 - hidden cases are excluded from export legend.
 
 ## Loading/Status States
