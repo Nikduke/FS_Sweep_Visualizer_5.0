@@ -6,7 +6,7 @@ Responsibilities:
 - render compact bordered button UI with focus-visible and disabled/loading states
 - collect active Plotly trace visibility/style from the target plot
 - generate full-legend PNG in browser with manual legend layout
-- for `R vs X`, build the manual legend from selected visible cases via the shared selection API
+- for `R vs X`, build the manual legend from selected visible cases via the shared selection API, with rendered marker-symbol fallback
 
 No Streamlit rerun is triggered by button clicks.
 

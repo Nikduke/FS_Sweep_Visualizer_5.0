@@ -56,7 +56,7 @@ Core design:
 - This custom export exists because Plotly's default modebar export can cut long legends.
 - Python passes export sizing/layout values as one `export_contract` object.
 - The export component uses the currently rendered Plotly DOM state, so selected-only visibility/legend styling is reflected in exported PNGs.
-- Scatter export uses the shared selection API to build a manual legend from currently selected visible cases.
+- Scatter export builds a manual legend from currently selected visible cases; it first uses the shared selection API, then falls back to the rendered selected marker symbols.
 - Export component keys are stable by plot filename/label to reduce remount flicker while plot index and layout are passed through the current contract args.
 
 ## Static Checks

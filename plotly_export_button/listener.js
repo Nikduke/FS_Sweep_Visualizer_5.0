@@ -152,13 +152,58 @@ function markerColorAt(markerColor, idx, fallbackColor) {
   return fallbackColor;
 }
 
+function markerSymbolAt(markerSymbol, idx) {
+  if (Array.isArray(markerSymbol)) return String(markerSymbol[idx] == null ? "" : markerSymbol[idx]);
+  return String(markerSymbol == null ? "" : markerSymbol);
+}
+
+function displayNameAt(customdata, ids, idx) {
+  const fallback = Array.isArray(ids) ? String(ids[idx] == null ? "" : ids[idx]) : "";
+  if (!Array.isArray(customdata)) return fallback;
+  const cd = customdata[idx];
+  if (Array.isArray(cd)) {
+    return String(cd[1] || cd[0] || fallback);
+  }
+  if (cd && typeof cd === "object") {
+    return String(cd.display_case || cd.displayCase || cd.case_id || cd.caseId || fallback);
+  }
+  return fallback;
+}
+
+function selectedMarkerLegendItemsForData(data, fallbackColor) {
+  const seen = new Set();
+  const items = [];
+  for (const tr of data) {
+    if (!tr || !tr.marker || typeof tr.marker !== "object") continue;
+    const ids = Array.isArray(tr.ids) ? tr.ids : [];
+    const marker = tr.marker;
+    for (let i = 0; i < ids.length; i++) {
+      const symbol = markerSymbolAt(marker.symbol, i).toLowerCase();
+      if (!symbol.includes("diamond")) continue;
+      const cid = String(ids[i] || "");
+      const key = cid || `${items.length}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      items.push({
+        name: displayNameAt(tr.customdata, ids, i),
+        color: markerColorAt(marker.color, i, fallbackColor),
+      });
+    }
+  }
+  return items;
+}
+
 function selectedCaseLegendItemsForData(data, cfg) {
   if (!cfg.selectedCaseLegend || !cfg.stateKey) return [];
   const api = getSelectionApi(cfg.stateKey);
-  if (!api || typeof api.getState !== "function") return [];
+  if (!api || typeof api.getState !== "function") {
+    return selectedMarkerLegendItemsForData(data, cfg.fallbackColor);
+  }
   const st = api.getState();
   const selectedRows = st && Array.isArray(st.selectedRows) ? st.selectedRows : [];
-  if (selectedRows.length === 0) return [];
+  if (selectedRows.length === 0) {
+    return selectedMarkerLegendItemsForData(data, cfg.fallbackColor);
+  }
 
   const colorByCase = new Map();
   for (const tr of data) {
@@ -181,7 +226,7 @@ function selectedCaseLegendItemsForData(data, cfg) {
     const display = String(row && row.displayCase ? row.displayCase : cid);
     items.push({ name: display, color: colorByCase.get(cid) || cfg.fallbackColor });
   }
-  return items;
+  return items.length > 0 ? items : selectedMarkerLegendItemsForData(data, cfg.fallbackColor);
 }
 
 function legendItemsForData(data, fallbackColor) {
