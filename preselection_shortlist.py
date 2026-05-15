@@ -358,46 +358,10 @@ def _compute_iec_vertices(
     }
 
 
-def _ranked_payload(rows: Sequence[Dict[str, object]]) -> Dict[str, object]:
-    clean_rows: List[Dict[str, object]] = []
-    seen: set[str] = set()
-    for row in rows:
-        cid = str(row.get("case_id", ""))
-        if not cid or cid in seen:
-            continue
-        score = float(row.get("score", 0.0))
-        zmax = float(row.get("zmax", 0.0))
-        harmonic = int(row.get("harmonic", 0))
-        if not np.isfinite(score):
-            continue
-        seen.add(cid)
-        clean_rows.append(
-            {
-                "case_id": cid,
-                "score": float(score),
-                "zmax": float(zmax) if np.isfinite(zmax) else 0.0,
-                "harmonic": int(harmonic) if harmonic >= 1 else 0,
-            }
-        )
-    clean_rows.sort(
-        key=lambda r: (
-            -float(r["score"]),
-            -float(r["zmax"]),
-            int(r["harmonic"]) if int(r["harmonic"]) > 0 else 999,
-            str(r["case_id"]),
-        )
-    )
-    return {
-        "case_ids": [str(r["case_id"]) for r in clean_rows],
-        "scores": {str(r["case_id"]): float(r["score"]) for r in clean_rows},
-        "zmax": {str(r["case_id"]): float(r["zmax"]) for r in clean_rows},
-        "harmonic": {str(r["case_id"]): int(r["harmonic"]) for r in clean_rows},
-    }
-
-
 def _ranked_rows_payload(rows: Sequence[Dict[str, object]], top_n_scope: str = "global") -> Dict[str, object]:
+    scope = "per_harmonic" if str(top_n_scope) == "per_harmonic" else "global"
     clean_rows: List[Dict[str, object]] = []
-    seen: set[Tuple[str, int]] = set()
+    seen: set[object] = set()
     for row in rows:
         cid = str(row.get("case_id", ""))
         score = float(row.get("score", 0.0))
@@ -405,7 +369,7 @@ def _ranked_rows_payload(rows: Sequence[Dict[str, object]], top_n_scope: str = "
         harmonic = int(row.get("harmonic", 0))
         if not cid or harmonic < 1 or not np.isfinite(score):
             continue
-        key = (cid, harmonic)
+        key: object = (cid, harmonic) if scope == "per_harmonic" else cid
         if key in seen:
             continue
         seen.add(key)
@@ -417,20 +381,30 @@ def _ranked_rows_payload(rows: Sequence[Dict[str, object]], top_n_scope: str = "
                 "harmonic": int(harmonic),
             }
         )
-    clean_rows.sort(
-        key=lambda r: (
-            int(r["harmonic"]),
-            -float(r["score"]),
-            -float(r["zmax"]),
-            str(r["case_id"]),
+    if scope == "per_harmonic":
+        clean_rows.sort(
+            key=lambda r: (
+                int(r["harmonic"]),
+                -float(r["score"]),
+                -float(r["zmax"]),
+                str(r["case_id"]),
+            )
         )
-    )
+    else:
+        clean_rows.sort(
+            key=lambda r: (
+                -float(r["score"]),
+                -float(r["zmax"]),
+                int(r["harmonic"]),
+                str(r["case_id"]),
+            )
+        )
     return {
         "case_ids": [str(r["case_id"]) for r in clean_rows],
         "scores": [float(r["score"]) for r in clean_rows],
         "zmax": [float(r["zmax"]) for r in clean_rows],
         "harmonic": [int(r["harmonic"]) for r in clean_rows],
-        "top_n_scope": str(top_n_scope or "global"),
+        "top_n_scope": scope,
     }
 
 
@@ -553,7 +527,7 @@ def _compute_risk_ranking(
             "harmonic": int(best_point[2]),
         }
 
-    return _ranked_payload(list(rows_by_case.values()))
+    return _ranked_rows_payload(list(rows_by_case.values()), top_n_scope="global")
 
 
 def _compute_outlier_ranking(
@@ -604,7 +578,7 @@ def _compute_outlier_ranking(
                         "zmax": float(z),
                         "harmonic": int(n),
                     }
-    return _ranked_payload(list(rows_by_case.values()))
+    return _ranked_rows_payload(list(rows_by_case.values()), top_n_scope="global")
 
 
 def build_preselection_payload(

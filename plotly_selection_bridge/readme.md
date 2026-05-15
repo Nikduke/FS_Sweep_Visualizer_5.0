@@ -85,7 +85,7 @@ Related sibling components (same repo):
    - import list tokenization accepts space/comma/tab/newline separation.
 10. Handles scatter frequency changes without rerun:
     - primary path: single-trace restyle from `layout.meta.rx_single_trace` on `plotly_sliderchange`
-    - active scatter payload contract is `version=2`: flat step-major `x_flat`/`y_flat` arrays plus `point_count`; legacy `x_by_step`/`y_by_step` remains readable as fallback
+    - active scatter payload contract is `version=2`: flat step-major `x_flat`/`y_flat` arrays plus `point_count`
 11. In case-part filters, shows color dots to the right of values for active `Color` grouping.
     - if `Color=Auto`, uses `auto_color_part_label`.
 12. Exposes selection control API at `window.parent.__fsCaseUiApi[{data_id}|{chart_id}]` for scatter-row controls.

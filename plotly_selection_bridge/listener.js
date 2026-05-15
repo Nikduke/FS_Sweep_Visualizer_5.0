@@ -1366,15 +1366,7 @@ function getRxSingleTracePayload(gd) {
       };
     }
 
-    const xByStep = Array.isArray(raw.x_by_step) ? raw.x_by_step : [];
-    const yByStep = Array.isArray(raw.y_by_step) ? raw.y_by_step : [];
-    if (xByStep.length !== freqValues.length || yByStep.length !== freqValues.length) return null;
-    return {
-      freqValues,
-      xAtStep: (idx) => xByStep[idx],
-      yAtStep: (idx) => yByStep[idx],
-      seqLabel: String(raw.seq_label || ""),
-    };
+    return null;
   } catch (e) {
     debugWarn("getRxSingleTracePayload", e);
   }

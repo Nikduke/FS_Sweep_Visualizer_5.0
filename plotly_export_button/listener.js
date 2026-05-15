@@ -39,8 +39,7 @@ function argValue(name) {
   const contract = latestArgs && latestArgs.export_contract && typeof latestArgs.export_contract === "object"
     ? latestArgs.export_contract
     : {};
-  if (Object.prototype.hasOwnProperty.call(contract, name)) return contract[name];
-  return latestArgs ? latestArgs[name] : null;
+  return Object.prototype.hasOwnProperty.call(contract, name) ? contract[name] : null;
 }
 
 function asNumber(name, fallback) {
@@ -157,6 +156,12 @@ function markerSymbolAt(markerSymbol, idx) {
   return String(markerSymbol == null ? "" : markerSymbol);
 }
 
+function markerNumberAt(markerValue, idx, fallback) {
+  const raw = Array.isArray(markerValue) ? markerValue[idx] : markerValue;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : Number(fallback);
+}
+
 function displayNameAt(customdata, ids, idx) {
   const fallback = Array.isArray(ids) ? String(ids[idx] == null ? "" : ids[idx]) : "";
   if (!Array.isArray(customdata)) return fallback;
@@ -193,16 +198,42 @@ function selectedMarkerLegendItemsForData(data, fallbackColor) {
   return items;
 }
 
+function visibleMarkerLegendItemsForData(data, fallbackColor) {
+  const seen = new Set();
+  const items = [];
+  for (const tr of data) {
+    if (!tr || !tr.marker || typeof tr.marker !== "object") continue;
+    const ids = Array.isArray(tr.ids) ? tr.ids : [];
+    const marker = tr.marker;
+    for (let i = 0; i < ids.length; i++) {
+      const opacity = markerNumberAt(marker.opacity, i, 1);
+      const size = markerNumberAt(marker.size, i, 1);
+      if (opacity <= 0 || size <= 0) continue;
+      const cid = String(ids[i] || "");
+      const key = cid || `${items.length}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      items.push({
+        name: displayNameAt(tr.customdata, ids, i),
+        color: markerColorAt(marker.color, i, fallbackColor),
+      });
+    }
+  }
+  return items;
+}
+
 function selectedCaseLegendItemsForData(data, cfg) {
   if (!cfg.selectedCaseLegend || !cfg.stateKey) return [];
   const api = getSelectionApi(cfg.stateKey);
   if (!api || typeof api.getState !== "function") {
-    return selectedMarkerLegendItemsForData(data, cfg.fallbackColor);
+    const selected = selectedMarkerLegendItemsForData(data, cfg.fallbackColor);
+    return selected.length > 0 ? selected : visibleMarkerLegendItemsForData(data, cfg.fallbackColor);
   }
   const st = api.getState();
   const selectedRows = st && Array.isArray(st.selectedRows) ? st.selectedRows : [];
   if (selectedRows.length === 0) {
-    return selectedMarkerLegendItemsForData(data, cfg.fallbackColor);
+    const selected = selectedMarkerLegendItemsForData(data, cfg.fallbackColor);
+    return selected.length > 0 ? selected : visibleMarkerLegendItemsForData(data, cfg.fallbackColor);
   }
 
   const colorByCase = new Map();
@@ -226,7 +257,9 @@ function selectedCaseLegendItemsForData(data, cfg) {
     const display = String(row && row.displayCase ? row.displayCase : cid);
     items.push({ name: display, color: colorByCase.get(cid) || cfg.fallbackColor });
   }
-  return items.length > 0 ? items : selectedMarkerLegendItemsForData(data, cfg.fallbackColor);
+  if (items.length > 0) return items;
+  const selected = selectedMarkerLegendItemsForData(data, cfg.fallbackColor);
+  return selected.length > 0 ? selected : visibleMarkerLegendItemsForData(data, cfg.fallbackColor);
 }
 
 function legendItemsForData(data, fallbackColor) {
@@ -243,6 +276,13 @@ function legendItemsForData(data, fallbackColor) {
     items.push({ name, color });
   }
   return items;
+}
+
+function removeExportOnlyControls(layout) {
+  if (!layout || typeof layout !== "object") return;
+  // Scatter uses the web slider for selection only; PNG export needs clean plot + manual legend.
+  layout.sliders = [];
+  delete layout.sliders;
 }
 
 function measureMaxLegendTextWidth(items, fontSize, fontFamily) {
@@ -418,8 +458,7 @@ async function doExport() {
     baseLayout.margin.b = newMarginB;
     baseLayout.showlegend = false;
     if (cfg.selectedCaseLegend) {
-      // Scatter export uses a manual selected-case legend; keep the web-only frequency slider out of PNGs.
-      baseLayout.sliders = [];
+      removeExportOnlyControls(baseLayout);
     }
     for (const tr of data2) {
       tr.showlegend = false;

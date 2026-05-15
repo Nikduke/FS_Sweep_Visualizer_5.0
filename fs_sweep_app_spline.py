@@ -153,7 +153,7 @@ _plotly_selection_bridge = components.declare_component(
 )
 
 _plotly_export_button = components.declare_component(
-    "plotly_export_button_v1",
+    "plotly_export_button_v2",
     path=str(os.path.join(os.path.dirname(__file__), "plotly_export_button")),
 )
 
@@ -487,57 +487,35 @@ def _compact_ranked_mode_payload(mode_payload: Dict[str, object], case_index: Di
     scores_raw = mode_payload.get("scores")
     zmax_raw = mode_payload.get("zmax")
     harmonic_raw = mode_payload.get("harmonic")
+    scores = scores_raw if isinstance(scores_raw, list) else []
+    zmax_list = zmax_raw if isinstance(zmax_raw, list) else []
+    harmonic_list = harmonic_raw if isinstance(harmonic_raw, list) else []
 
     case_idx: List[int] = []
     scores_out: List[float] = []
     zmax_out: List[float] = []
     harmonic_out: List[int] = []
-    if isinstance(scores_raw, list):
-        zmax_list = zmax_raw if isinstance(zmax_raw, list) else []
-        harmonic_list = harmonic_raw if isinstance(harmonic_raw, list) else []
-        seen_rows = set()
-        for i, cid_raw in enumerate(ids):
-            cid = str(cid_raw)
-            if not cid:
-                continue
-            idx = case_index.get(cid)
-            if idx is None:
-                continue
-            score = _to_finite_float_or_none(scores_raw[i] if i < len(scores_raw) else None)
-            if score is None:
-                continue
-            zmax = _to_finite_float_or_none(zmax_list[i] if i < len(zmax_list) else None)
-            harmonic = _to_nonnegative_int(harmonic_list[i] if i < len(harmonic_list) else 0)
-            row_key = (cid, int(harmonic))
-            if row_key in seen_rows:
-                continue
-            seen_rows.add(row_key)
-            case_idx.append(int(idx))
-            scores_out.append(float(score))
-            zmax_out.append(float(zmax if zmax is not None else 0.0))
-            harmonic_out.append(int(harmonic))
-    else:
-        scores = scores_raw if isinstance(scores_raw, dict) else {}
-        zmax_by_case = zmax_raw if isinstance(zmax_raw, dict) else {}
-        harmonic_by_case = harmonic_raw if isinstance(harmonic_raw, dict) else {}
-        seen_case_ids = set()
-        for cid_raw in ids:
-            cid = str(cid_raw)
-            if not cid or cid in seen_case_ids:
-                continue
-            seen_case_ids.add(cid)
-            idx = case_index.get(cid)
-            if idx is None:
-                continue
-            score = _to_finite_float_or_none(scores.get(cid))
-            if score is None:
-                continue
-            zmax = _to_finite_float_or_none(zmax_by_case.get(cid))
-            harmonic = _to_nonnegative_int(harmonic_by_case.get(cid, 0))
-            case_idx.append(int(idx))
-            scores_out.append(float(score))
-            zmax_out.append(float(zmax if zmax is not None else 0.0))
-            harmonic_out.append(int(harmonic))
+    seen_rows = set()
+    for i, cid_raw in enumerate(ids):
+        cid = str(cid_raw)
+        if not cid:
+            continue
+        idx = case_index.get(cid)
+        if idx is None:
+            continue
+        score = _to_finite_float_or_none(scores[i] if i < len(scores) else None)
+        if score is None:
+            continue
+        zmax = _to_finite_float_or_none(zmax_list[i] if i < len(zmax_list) else None)
+        harmonic = _to_nonnegative_int(harmonic_list[i] if i < len(harmonic_list) else 0)
+        row_key = (cid, int(harmonic))
+        if row_key in seen_rows:
+            continue
+        seen_rows.add(row_key)
+        case_idx.append(int(idx))
+        scores_out.append(float(score))
+        zmax_out.append(float(zmax if zmax is not None else 0.0))
+        harmonic_out.append(int(harmonic))
 
     return {
         "case_idx": case_idx,
@@ -1665,6 +1643,8 @@ def _render_client_png_download(
     selected_case_legend: bool = False,
 ):
     export_contract = {
+        "filename": str(filename),
+        "button_label": str(button_label),
         "scale": int(scale),
         "plot_height": int(plot_height),
         "legend_entrywidth": int(legend_entrywidth),
@@ -1708,8 +1688,6 @@ def _render_client_png_download(
     )
     key_hash = hashlib.sha1(key_payload.encode("utf-8")).hexdigest()[:10]
     _plotly_export_button(  # type: ignore[misc]
-        filename=str(filename),
-        button_label=str(button_label),
         export_contract=dict(export_contract),
         key=f"plotly_export_button:{key_hash}",
         height=30,
