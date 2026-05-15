@@ -23,5 +23,6 @@ Current status:
 - export is positioned above the plot body, not in the sidebar `Show plots` section
 - button label is `Export PNG`
 - button text changes to `Exporting PNG...` while browser-side export runs
+- `R vs X` PNG export omits the web-only frequency slider and uses the manual selected-case legend instead
 - continues to export from the currently rendered plot state
 - defensive export helpers use debug-only warnings instead of silent catches

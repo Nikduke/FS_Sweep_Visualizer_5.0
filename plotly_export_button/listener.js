@@ -417,6 +417,10 @@ async function doExport() {
     baseLayout.margin.r = cfg.rightMargin;
     baseLayout.margin.b = newMarginB;
     baseLayout.showlegend = false;
+    if (cfg.selectedCaseLegend) {
+      // Scatter export uses a manual selected-case legend; keep the web-only frequency slider out of PNGs.
+      baseLayout.sliders = [];
+    }
     for (const tr of data2) {
       tr.showlegend = false;
     }

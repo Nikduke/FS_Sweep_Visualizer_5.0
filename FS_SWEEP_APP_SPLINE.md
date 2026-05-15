@@ -206,6 +206,7 @@ Line x-axis implementation:
 - modebar export remains available.
 - line full-legend export (`Export PNG` above each line plot) reads current line visibility/style state.
 - scatter export (`Export PNG` above `R vs X`) reads current scatter state and adds a manual legend for selected visible cases.
+- scatter export omits the web-only frequency slider from the PNG so the manual legend sits below the axis cleanly.
 - hidden cases are excluded from export legend.
 
 ## Loading/Status States
