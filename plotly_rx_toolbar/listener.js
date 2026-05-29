@@ -702,9 +702,9 @@ function render() {
             <label class="rx-method-check">
               <input id="rx-method-iec" type="checkbox" />
               <span id="rx-method-iec-label">RX hull</span>
-              <span class="rx-help" title="R/X envelope screen: per harmonic, each case contributes its max-|Z| R/X point; cases on the convex-hull boundary are selected. Capacitive rebuilds this hull using X < 0 points only." aria-label="RX hull method help">?</span>
+              <span class="rx-help" title="R/X envelope screen: per harmonic, each case contributes its max-|Z| R/X point; cases on the convex-hull boundary are selected. Top N/h keeps the strongest hull cases per harmonic, then unions cases. Capacitive rebuilds this hull using X < 0 points only." aria-label="RX hull method help">?</span>
             </label>
-            <label class="rx-th rx-input-short">Top N <input id="rx-iec-topn" type="number" min="0" step="1" value="0" /></label>
+            <label class="rx-th rx-input-short">Top N/h <input id="rx-iec-topn" type="number" min="0" step="1" value="0" /></label>
             <label class="rx-method-check">
               <input id="rx-iec-capacitive" type="checkbox" />
               <span id="rx-iec-capacitive-label">Capacitive (0)</span>

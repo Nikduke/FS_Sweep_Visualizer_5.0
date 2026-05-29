@@ -668,12 +668,14 @@ function computeIecCandidatesForMode(ctx, modeKey) {
   if (!baseData) return out;
   const modeData = getIecModeData(baseData, String(modeKey || "all"));
   if (!modeData) return out;
-  const ranked = [];
   const compactIdx = Array.isArray(modeData.case_idx) ? modeData.case_idx : [];
   const compactOrders = Array.isArray(modeData.vertex_orders) ? modeData.vertex_orders : [];
+  const compactZmax = Array.isArray(modeData.vertex_zmax) ? modeData.vertex_zmax : [];
   const baseCaseIds = Array.isArray(baseData.case_ids) ? baseData.case_ids : [];
   if (compactIdx.length <= 0 || baseCaseIds.length <= 0) return out;
   const seen = new Set();
+  const totalVertexCountByCase = new Map();
+  const rowsByHarmonic = new Map();
   for (let i = 0; i < compactIdx.length; i++) {
     const idxRaw = Number(compactIdx[i]);
     if (!Number.isFinite(idxRaw)) continue;
@@ -687,20 +689,30 @@ function computeIecCandidatesForMode(ctx, modeKey) {
       .map((v) => Number(v))
       .filter((v) => Number.isFinite(v) && v >= 1)
       .map((v) => Math.floor(v));
-    let first = Number.POSITIVE_INFINITY;
-    for (const hv of finiteOrders) {
-      if (hv < first) first = hv;
+    const zmaxRaw = Array.isArray(compactZmax[i]) ? compactZmax[i] : [];
+    totalVertexCountByCase.set(cid, finiteOrders.length);
+    for (let j = 0; j < finiteOrders.length; j++) {
+      const harmonic = finiteOrders[j];
+      const zmax = Number.isFinite(Number(zmaxRaw[j])) ? Number(zmaxRaw[j]) : 0;
+      if (!rowsByHarmonic.has(harmonic)) rowsByHarmonic.set(harmonic, []);
+      rowsByHarmonic.get(harmonic).push({ caseId: cid, harmonic, zmax });
     }
-    ranked.push({ caseId: cid, firstHarmonic: first, vertexCount: finiteOrders.length });
   }
-  ranked.sort((a, b) => {
-    if (a.firstHarmonic !== b.firstHarmonic) return a.firstHarmonic - b.firstHarmonic;
-    if (b.vertexCount !== a.vertexCount) return b.vertexCount - a.vertexCount;
+  const sortRows = (a, b) => {
+    if (b.zmax !== a.zmax) return b.zmax - a.zmax;
+    const av = Number(totalVertexCountByCase.get(a.caseId) || 0);
+    const bv = Number(totalVertexCountByCase.get(b.caseId) || 0);
+    if (bv !== av) return bv - av;
     return String(a.caseId).localeCompare(String(b.caseId));
-  });
+  };
   const topN = normalizeTopN(ctx && ctx.state ? ctx.state.methodIecTopN : 0);
-  const limited = topN > 0 ? ranked.slice(0, topN) : ranked;
-  for (const row of limited) out.add(String(row.caseId));
+  const harmonics = Array.from(rowsByHarmonic.keys()).sort((a, b) => a - b);
+  for (const harmonic of harmonics) {
+    const rows = rowsByHarmonic.get(harmonic) || [];
+    rows.sort(sortRows);
+    const limited = topN > 0 ? rows.slice(0, topN) : rows;
+    for (const row of limited) out.add(String(row.caseId));
+  }
   return out;
 }
 

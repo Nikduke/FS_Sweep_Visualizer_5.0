@@ -290,10 +290,12 @@ def _compute_iec_vertices(
             "iec_case_ids": [],
             "iec_first_harmonic": {},
             "iec_vertex_orders": {},
+            "iec_vertex_zmax": {},
             "n_env": int(max(0, n_env)),
         }
 
     vertex_orders: Dict[str, List[int]] = {str(c): [] for c in cases}
+    vertex_zmax: Dict[str, Dict[str, float]] = {str(c): {} for c in cases}
     if harmonic_points is None:
         band_indices, harmonic_points = _compute_harmonic_max_points(
             freq,
@@ -339,6 +341,10 @@ def _compute_iec_vertices(
 
         for case_id in selected_cases:
             vertex_orders.setdefault(case_id, []).append(int(n))
+            point = harmonic_points.get(int(n), {}).get(case_id, {})
+            zmax = float(point.get("zmax", np.nan)) if isinstance(point, dict) else np.nan
+            if np.isfinite(zmax):
+                vertex_zmax.setdefault(case_id, {})[str(int(n))] = float(zmax)
 
     vertex_orders_clean = {
         str(case_id): sorted(set(int(v) for v in h_list))
@@ -349,11 +355,24 @@ def _compute_iec_vertices(
         str(case_id): int(min(h_list))
         for case_id, h_list in vertex_orders_clean.items()
     }
+    vertex_zmax_clean: Dict[str, Dict[str, float]] = {}
+    for case_id, h_list in vertex_orders_clean.items():
+        z_src = vertex_zmax.get(str(case_id), {})
+        z_out: Dict[str, float] = {}
+        for n in h_list:
+            try:
+                z_val = float(z_src.get(str(int(n)), np.nan))
+            except Exception:
+                continue
+            if np.isfinite(z_val):
+                z_out[str(int(n))] = float(z_val)
+        vertex_zmax_clean[str(case_id)] = z_out
     selected_case_ids = sorted(first_harmonic.keys())
     return {
         "iec_case_ids": selected_case_ids,
         "iec_first_harmonic": first_harmonic,
         "iec_vertex_orders": vertex_orders_clean,
+        "iec_vertex_zmax": vertex_zmax_clean,
         "n_env": int(n_env),
     }
 
@@ -673,12 +692,14 @@ def build_preselection_payload(
                     "iec_case_ids": list(iec_all["iec_case_ids"]),
                     "iec_first_harmonic": dict(iec_all["iec_first_harmonic"]),
                     "iec_vertex_orders": dict(iec_all["iec_vertex_orders"]),
+                    "iec_vertex_zmax": dict(iec_all.get("iec_vertex_zmax", {})),
                     "n_env": int(iec_all["n_env"]),
                 },
                 "capacitive": {
                     "iec_case_ids": list(iec_capacitive["iec_case_ids"]),
                     "iec_first_harmonic": dict(iec_capacitive["iec_first_harmonic"]),
                     "iec_vertex_orders": dict(iec_capacitive["iec_vertex_orders"]),
+                    "iec_vertex_zmax": dict(iec_capacitive.get("iec_vertex_zmax", {})),
                     "n_env": int(iec_capacitive["n_env"]),
                 },
             },

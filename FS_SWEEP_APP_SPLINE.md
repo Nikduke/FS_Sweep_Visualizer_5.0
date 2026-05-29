@@ -117,7 +117,7 @@ Rendered by `plotly_selection_bridge`:
   - harmonic/bin guide lines are generated from full baseline harmonic range (not from current zoom window)
 - method controls (in the scatter toolbar default-open `Selection methods` section):
   - `Energinet` toggle + editable `T2/T3/T4` + `Top N`
-  - `RX hull` toggle + `Top N` + `Capacitive (N)`
+  - `RX hull` toggle + `Top N/h` + `Capacitive (N)`
   - `Peak |Z|` toggle + `Top N/h` + `Capacitive (N)`
   - `Risk` toggle + `Top N` + `Capacitive (N)`
   - `Outliers` toggle + `Top N` + `Capacitive (N)`
@@ -128,11 +128,11 @@ Rendered by `plotly_selection_bridge`:
 ## Selection Method Formulas
 
 - `Energinet`: ranks cases where harmonic-band peak `|Z|` exceeds editable thresholds at 2nd/3rd/4th harmonic. Score is the maximum threshold ratio.
-- `RX hull`: for each harmonic from 2 to available range capped at 6, finds each case's harmonic-band peak `|Z|` point in R/X space and selects convex-hull vertices. Ranking uses earliest selected harmonic, then vertex count.
+- `RX hull`: for each harmonic from 2 to available range capped at 6, finds each case's harmonic-band peak `|Z|` point in R/X space and selects convex-hull vertices. `Top N/h` keeps the strongest hull cases inside each harmonic, then unions cases across harmonics.
 - `Peak |Z|`: ranks cases separately within each harmonic band over harmonics 2..6. `Top N/h` selects the top N cases per harmonic and uses the union of those cases.
 - `Risk`: ranks cases by weighted score from normalized peak `|Z|`, robust local prominence over cohort median/MAD, area above cohort median, damping proxy `log1p(|Z| / max(|R|, 1))`, and proximity to harmonic center.
 - `Outliers`: selects robust outliers by harmonic-band peak `|Z|` using MAD z-score threshold `3.5`; if MAD collapses, uses 95th percentile fallback.
-- For `RX hull`, `Peak |Z|`, `Risk`, and `Outliers`, `Capacitive` mode recomputes the method using only candidate points with `X < 0`; for `Peak |Z|`, this is still Top N per harmonic.
+- For `RX hull`, `Peak |Z|`, `Risk`, and `Outliers`, `Capacitive` mode recomputes the method using only candidate points with `X < 0`; for `RX hull` and `Peak |Z|`, this is still Top N per harmonic.
 
 ## Visibility And Legend Rules
 

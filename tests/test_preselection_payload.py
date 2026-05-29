@@ -47,8 +47,18 @@ class RankedPayloadTests(unittest.TestCase):
                         "energinet_metrics": {},
                         "band_sample_counts": {"2": 3},
                         "iec_modes": {
-                            "all": {"iec_case_ids": [], "iec_vertex_orders": {}, "n_env": 6},
-                            "capacitive": {"iec_case_ids": [], "iec_vertex_orders": {}, "n_env": 6},
+                            "all": {
+                                "iec_case_ids": ["B"],
+                                "iec_vertex_orders": {"B": [2, 4]},
+                                "iec_vertex_zmax": {"B": {"2": 10.0, "4": 40.0}},
+                                "n_env": 6,
+                            },
+                            "capacitive": {
+                                "iec_case_ids": [],
+                                "iec_vertex_orders": {},
+                                "iec_vertex_zmax": {},
+                                "n_env": 6,
+                            },
                         },
                         "peak_z_modes": {"all": ranked, "capacitive": ranked},
                         "risk_modes": {"all": ranked, "capacitive": ranked},
@@ -61,6 +71,10 @@ class RankedPayloadTests(unittest.TestCase):
         node = compact["by_f1"]["50"]
         self.assertEqual(compact["format"], "compact_v3")
         self.assertEqual(node["case_ids"], ["B"])
+        self.assertEqual(node["iec_modes"]["all"]["case_idx"], [0])
+        self.assertEqual(node["iec_modes"]["all"]["vertex_orders"], [[2, 4]])
+        self.assertEqual(node["iec_modes"]["all"]["vertex_zmax"], [[10.0, 40.0]])
+        self.assertEqual(node["iec_modes"]["all"]["top_n_scope"], "per_harmonic")
         self.assertEqual(node["risk_modes"]["all"]["case_idx"], [0])
         self.assertEqual(node["risk_modes"]["all"]["scores"], [4.0])
 

@@ -445,6 +445,8 @@ def _to_nonnegative_int(raw: object) -> int:
 def _compact_iec_mode_payload(mode_payload: Dict[str, object], case_index: Dict[str, int]) -> Dict[str, object]:
     vertex_orders_raw = mode_payload.get("iec_vertex_orders")
     vertex_orders = vertex_orders_raw if isinstance(vertex_orders_raw, dict) else {}
+    vertex_zmax_raw = mode_payload.get("iec_vertex_zmax")
+    vertex_zmax = vertex_zmax_raw if isinstance(vertex_zmax_raw, dict) else {}
     ids_raw = mode_payload.get("iec_case_ids")
     if isinstance(ids_raw, list):
         ids = [str(v) for v in ids_raw if str(v) != ""]
@@ -453,6 +455,7 @@ def _compact_iec_mode_payload(mode_payload: Dict[str, object], case_index: Dict[
 
     case_idx: List[int] = []
     orders_out: List[List[int]] = []
+    zmax_out: List[List[Optional[float]]] = []
     seen_case_ids = set()
     for cid in ids:
         if cid in seen_case_ids:
@@ -471,13 +474,23 @@ def _compact_iec_mode_payload(mode_payload: Dict[str, object], case_index: Dict[
                 continue
             seen_orders.add(hv)
             ord_clean.append(int(hv))
+        zmax_src = vertex_zmax.get(str(cid))
+        zmax_by_harmonic = zmax_src if isinstance(zmax_src, dict) else {}
+        zmax_clean: List[Optional[float]] = []
+        for hv in ord_clean:
+            zmax_raw = zmax_by_harmonic.get(str(int(hv)), zmax_by_harmonic.get(int(hv)))
+            zmax = _to_finite_float_or_none(zmax_raw)
+            zmax_clean.append(zmax)
         case_idx.append(int(idx))
         orders_out.append(ord_clean)
+        zmax_out.append(zmax_clean)
 
     return {
         "case_idx": case_idx,
         "vertex_orders": orders_out,
+        "vertex_zmax": zmax_out,
         "n_env": int(_to_nonnegative_int(mode_payload.get("n_env", 0))),
+        "top_n_scope": "per_harmonic",
     }
 
 

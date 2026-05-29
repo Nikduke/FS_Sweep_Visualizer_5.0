@@ -49,9 +49,9 @@ Related sibling components (same repo):
 - `preselection_payload` (object): server-precomputed selection-method candidate data
   - compact format (`format=compact_v3`) is the active payload contract:
     - `case_ids` + array metrics (`energinet.z2/z3/z4/...`)
-    - `RX hull` (`iec_modes`) `all` and `capacitive` modes encoded with `case_idx` + `vertex_orders`
+    - `RX hull` (`iec_modes`) `all` and `capacitive` modes encoded with `case_idx`, `vertex_orders`, and `vertex_zmax`
     - `Peak |Z|`, `Risk`, and `Outliers` modes encoded with `case_idx`, `scores`, `zmax`, and `harmonic`
-    - `Peak |Z|` uses `top_n_scope=per_harmonic`, so `Top N/h` is applied inside each harmonic group before unioning selected cases
+    - `RX hull` and `Peak |Z|` use per-harmonic `Top N/h`, then union selected cases
 - `energinet_t2_default` (float)
 - `energinet_t3_default` (float)
 - `energinet_t4_default` (float)
