@@ -148,7 +148,7 @@ SELECTION_MODE_TICK_FONT_SIZE_PX = 12
 SELECTION_MODE_LINE_MARGIN_BOTTOM_PX = 72
 
 _plotly_selection_bridge = components.declare_component(
-    "plotly_selection_bridge_v15",
+    "plotly_selection_bridge_v16",
     path=str(os.path.join(os.path.dirname(__file__), "plotly_selection_bridge")),
 )
 
@@ -158,7 +158,7 @@ _plotly_export_button = components.declare_component(
 )
 
 _plotly_rx_toolbar = components.declare_component(
-    "plotly_rx_toolbar_v1",
+    "plotly_rx_toolbar_v2",
     path=str(os.path.join(os.path.dirname(__file__), "plotly_rx_toolbar")),
 )
 
@@ -205,6 +205,7 @@ class AppRenderContext:
     show_plot_x: bool
     show_plot_r: bool
     show_plot_xr: bool
+    show_plot_z: bool
     selection_mode_layout: bool
     render_auto_width: bool
     preselection_payload: Dict[str, object]
@@ -546,11 +547,11 @@ def _compact_preselection_payload(payload: Dict[str, object]) -> Dict[str, objec
             "error": "Invalid preselection payload shape.",
             "limitation_note": "",
             "cases_count": 0,
-            "format": "compact_v3",
+            "format": "compact_v4",
             "by_f1": {},
         }
 
-    if str(payload.get("format", "")) == "compact_v3":
+    if str(payload.get("format", "")) == "compact_v4":
         return dict(payload)
 
     out: Dict[str, object] = {
@@ -558,7 +559,7 @@ def _compact_preselection_payload(payload: Dict[str, object]) -> Dict[str, objec
         "error": str(payload.get("error", "")),
         "limitation_note": str(payload.get("limitation_note", "")),
         "cases_count": int(_to_nonnegative_int(payload.get("cases_count", 0))),
-        "format": "compact_v3",
+        "format": "compact_v4",
         "by_f1": {},
     }
 
@@ -580,7 +581,7 @@ def _compact_preselection_payload(payload: Dict[str, object]) -> Dict[str, objec
             all_node = all_src if isinstance(all_src, dict) else base_node_raw
             capacitive_node = capacitive_src if isinstance(capacitive_src, dict) else all_node
             ranked_sources: List[Dict[str, object]] = []
-            for modes_name in ("peak_z_modes", "risk_modes", "outlier_modes"):
+            for modes_name in ("peak_z_modes", "peak_x_modes", "risk_modes", "outlier_modes"):
                 modes_raw = base_node_raw.get(modes_name)
                 modes = modes_raw if isinstance(modes_raw, dict) else {}
                 for ranked_node_raw in (modes.get("all"), modes.get("capacitive")):
@@ -604,7 +605,7 @@ def _compact_preselection_payload(payload: Dict[str, object]) -> Dict[str, objec
             case_ids = sorted(case_ids)
             case_index = {cid: i for i, cid in enumerate(case_ids)}
             ranked_modes: Dict[str, Dict[str, object]] = {}
-            for modes_name in ("peak_z_modes", "risk_modes", "outlier_modes"):
+            for modes_name in ("peak_z_modes", "peak_x_modes", "risk_modes", "outlier_modes"):
                 modes_raw = base_node_raw.get(modes_name)
                 modes = modes_raw if isinstance(modes_raw, dict) else {}
                 all_mode = modes.get("all")
@@ -644,7 +645,7 @@ def _compact_preselection_payload(payload: Dict[str, object]) -> Dict[str, objec
             }
 
             by_f1_out[str(f1_key)] = {
-                "format": "compact_v3",
+                "format": "compact_v4",
                 "case_ids": list(case_ids),
                 "energinet": {
                     "z2": z2,
@@ -660,6 +661,7 @@ def _compact_preselection_payload(payload: Dict[str, object]) -> Dict[str, objec
                     "capacitive": _compact_iec_mode_payload(capacitive_node, case_index),
                 },
                 "peak_z_modes": ranked_modes["peak_z_modes"],
+                "peak_x_modes": ranked_modes["peak_x_modes"],
                 "risk_modes": ranked_modes["risk_modes"],
                 "outlier_modes": ranked_modes["outlier_modes"],
             }
@@ -1434,6 +1436,58 @@ def build_x_over_r_spline(df_r: Optional[SheetLike], df_x: Optional[SheetLike], 
     return fig, f_series, xr_dropped, xr_total
 
 
+def build_z_spline(df_r: Optional[SheetLike], df_x: Optional[SheetLike], cases: List[str], f_base: float,
+                   plot_height: int, seq_label: str, smooth: float, legend_entrywidth: int,
+                   enable_spline: bool,
+                   strip_location_suffix: bool, use_auto_width: bool, figure_width_px: int,
+                   case_colors: Dict[str, str],
+                   ) -> Tuple[go.Figure, Optional[np.ndarray]]:
+    f_series = None
+    TraceCls = go.Scatter if enable_spline else go.Scattergl
+    traces: List[BaseTraceType] = []
+    if df_r is not None and df_x is not None:
+        cd, r_map = prepare_sheet_arrays(df_r)
+        _cd2, x_map = prepare_sheet_arrays(df_x)
+        freq_hz = np.asarray(cd, dtype=np.float64)
+        both = [c for c in cases if (c in r_map and c in x_map)]
+        f_series = sheet_frequency_values(df_r)
+        y_title = "Z1 (\u03A9)" if seq_label == "Positive" else "Z0 (\u03A9)"
+        for case in both:
+            r = np.asarray(r_map[case], dtype=np.float64)
+            x = np.asarray(x_map[case], dtype=np.float64)
+            valid = np.isfinite(r) & np.isfinite(x)
+            y = np.where(valid, np.sqrt(np.square(r) + np.square(x)), np.nan)
+            color = str(case_colors.get(case, "#1f77b4"))
+            line_cfg = dict(color=color)
+            tr = TraceCls(
+                x=freq_hz,
+                y=y,
+                mode="lines",
+                name=display_case_name(case) if strip_location_suffix else str(case),
+                meta={
+                    "kind": "line",
+                    "case_id": str(case),
+                    "display_case": str(display_case_name(case)),
+                    "legend_color": color,
+                    "x_unit": LINE_X_AXIS_UNIT,
+                    "f_base": float(f_base),
+                },
+                line=line_cfg,
+                opacity=1.0,
+                showlegend=True,
+                hovertemplate=(
+                    "Case=%{fullData.name}<br>f=%{x:.1f} Hz" + f"<br>{y_title}=%{{y}}<extra></extra>"
+                ),
+            )
+            if enable_spline and isinstance(tr, go.Scatter):
+                tr.update(line=dict(shape="spline", smoothing=float(smooth), color=color))
+            traces.append(tr)
+    fig = go.Figure(data=traces)
+    y_title = "Z1 (\u03A9)" if seq_label == "Positive" else "Z0 (\u03A9)"
+    apply_common_layout(fig, plot_height, y_title, legend_entrywidth, use_auto_width, figure_width_px)
+    return fig, f_series
+
+
 def _nearest_indices_for_targets(freq: np.ndarray, targets: np.ndarray) -> np.ndarray:
     freq_arr = np.asarray(freq, dtype=np.float64)
     target_arr = np.asarray(targets, dtype=np.float64)
@@ -1877,24 +1931,26 @@ def _apply_base_frequency_autodetect(data: Dict[str, SweepSheet], data_id: str, 
     st.session_state[marker_key] = did
 
 
-def _render_show_plots_controls(container: Optional[object] = None) -> Tuple[bool, bool, bool, bool, bool]:
+def _render_show_plots_controls(container: Optional[object] = None) -> Tuple[bool, bool, bool, bool, bool, bool]:
     ui = container if container is not None else st.sidebar
     ui.header("Show plots")
     show_plot_rx = ui.checkbox("R vs X scatter", value=True, key="show_plot_rx")
-    cols = ui.columns(3, gap="small")
+    cols = ui.columns(4, gap="small")
     with cols[0]:
         show_plot_x = st.checkbox("X", value=True, key="show_plot_x")
     with cols[1]:
         show_plot_r = st.checkbox("R", value=False, key="show_plot_r")
     with cols[2]:
         show_plot_xr = st.checkbox("X/R", value=False, key="show_plot_xr")
+    with cols[3]:
+        show_plot_z = st.checkbox("Z", value=False, key="show_plot_z")
     selection_mode_layout = ui.checkbox(
         "Selection mode",
         value=False,
         key="selection_mode_layout",
-        help="Layout only: put R vs X and X side by side, with R and X/R below.",
+        help="Layout only: put R vs X and X side by side, with enabled R, X/R, and Z below.",
     )
-    return show_plot_rx, show_plot_x, show_plot_r, show_plot_xr, selection_mode_layout
+    return show_plot_rx, show_plot_x, show_plot_r, show_plot_xr, show_plot_z, selection_mode_layout
 
 
 def _prepare_render_context(default_path: str) -> AppRenderContext:
@@ -1969,9 +2025,9 @@ def _prepare_render_context(default_path: str) -> AppRenderContext:
         st.header("Case Filters & Selection")
         interactive_controls_area = st.container()
 
-    show_plot_rx, show_plot_x, show_plot_r, show_plot_xr, selection_mode_layout = _render_show_plots_controls(show_plots_area)
+    show_plot_rx, show_plot_x, show_plot_r, show_plot_xr, show_plot_z, selection_mode_layout = _render_show_plots_controls(show_plots_area)
     render_auto_width = bool(use_auto_width or selection_mode_layout)
-    if not (show_plot_x or show_plot_r or show_plot_xr or show_plot_rx):
+    if not (show_plot_x or show_plot_r or show_plot_xr or show_plot_z or show_plot_rx):
         st.warning("Select at least one plot to display.")
         st.stop()
     f_base = float(int(st.session_state.get(base_freq_key, int(round(f_base)))))
@@ -1989,11 +2045,11 @@ def _prepare_render_context(default_path: str) -> AppRenderContext:
         chart_id=str(chart_id),
     )
 
-    if (show_plot_r or show_plot_xr or show_plot_rx) and df_r is None:
-        st.error(f"Sheet '{seq[0]}' is missing, but R, X/R and/or R vs X scatter is enabled.")
+    if (show_plot_r or show_plot_xr or show_plot_z or show_plot_rx) and df_r is None:
+        st.error(f"Sheet '{seq[0]}' is missing, but R, X/R, Z and/or R vs X scatter is enabled.")
         st.stop()
-    if (show_plot_x or show_plot_xr or show_plot_rx) and df_x is None:
-        st.error(f"Sheet '{seq[1]}' is missing, but X, X/R and/or R vs X scatter is enabled.")
+    if (show_plot_x or show_plot_xr or show_plot_z or show_plot_rx) and df_x is None:
+        st.error(f"Sheet '{seq[1]}' is missing, but X, X/R, Z and/or R vs X scatter is enabled.")
         st.stop()
 
     location_cases = filter_cases_by_location(all_cases, selected_location)
@@ -2006,7 +2062,7 @@ def _prepare_render_context(default_path: str) -> AppRenderContext:
     raw_preselection_payload = st.session_state.get(preselection_cache_key)
     payload_by_f1 = raw_preselection_payload.get("by_f1") if isinstance(raw_preselection_payload, dict) else {}
     cache_has_requested_base = isinstance(payload_by_f1, dict) and requested_base_key in payload_by_f1
-    cache_format_ok = isinstance(raw_preselection_payload, dict) and str(raw_preselection_payload.get("format", "")) == "compact_v3"
+    cache_format_ok = isinstance(raw_preselection_payload, dict) and str(raw_preselection_payload.get("format", "")) == "compact_v4"
     if not isinstance(raw_preselection_payload, dict) or not cache_has_requested_base or not cache_format_ok:
         build_location_caption = selected_location if selected_location else "<empty>"
         with st.spinner(f"Building plots for {build_location_caption} / {int(round(f_base))} Hz..."):
@@ -2049,6 +2105,7 @@ def _prepare_render_context(default_path: str) -> AppRenderContext:
         show_plot_x=bool(show_plot_x),
         show_plot_r=bool(show_plot_r),
         show_plot_xr=bool(show_plot_xr),
+        show_plot_z=bool(show_plot_z),
         selection_mode_layout=bool(selection_mode_layout),
         render_auto_width=bool(render_auto_width),
         preselection_payload=dict(preselection_payload),
@@ -2298,6 +2355,82 @@ def _build_cached_xr_plot_item(
     return item, int(meta.get("xr_dropped", 0)), int(meta.get("xr_total", 0))
 
 
+def _build_cached_z_plot_item(
+    *,
+    df_r: Optional[SheetLike],
+    df_x: Optional[SheetLike],
+    cases: List[str],
+    data_id: str,
+    seq_label: str,
+    f_base: float,
+    plot_height: int,
+    smooth: float,
+    enable_spline: bool,
+    legend_entrywidth: int,
+    strip_location_suffix: bool,
+    render_auto_width: bool,
+    figure_width_px: int,
+    case_colors: Dict[str, str],
+    cases_sig: str,
+    colors_sig: str,
+    n_lo: float,
+    n_hi: float,
+    selection_mode_layout: bool,
+) -> Dict[str, object]:
+    y_title = _sequence_y_titles(str(seq_label))["z"]
+    sig_payload = _line_sig_payload(
+        kind="z",
+        cases_sig=str(cases_sig),
+        f_base=float(f_base),
+        plot_height=int(plot_height),
+        smooth=float(smooth),
+        enable_spline=bool(enable_spline),
+        legend_entrywidth=int(legend_entrywidth),
+        strip_location_suffix=bool(strip_location_suffix),
+        render_auto_width=bool(render_auto_width),
+        figure_width_px=int(figure_width_px),
+        colors_sig=str(colors_sig),
+        title=str(y_title),
+        n_lo=float(n_lo),
+        n_hi=float(n_hi),
+        selection_mode_layout=bool(selection_mode_layout),
+    )
+
+    def builder() -> Tuple[go.Figure, Dict[str, object]]:
+        fig_built, _ = build_z_spline(
+            df_r,
+            df_x,
+            cases,
+            f_base,
+            plot_height,
+            seq_label,
+            smooth,
+            legend_entrywidth,
+            enable_spline,
+            strip_location_suffix,
+            render_auto_width,
+            figure_width_px,
+            case_colors,
+        )
+        _apply_line_harmonic_xaxis(fig_built, f_base=float(f_base), n_lo=float(n_lo), n_hi=float(n_hi))
+        if selection_mode_layout:
+            apply_selection_mode_line_layout(
+                fig=fig_built,
+                y_title=str(y_title),
+                target_height=max(420, int(round(float(plot_height) * float(RX_SCATTER_HEIGHT_FACTOR)))),
+            )
+        return fig_built, {}
+
+    fig, _ = _get_or_build_cached_line_figure(
+        data_id=data_id,
+        seq_label=seq_label,
+        kind="z",
+        sig_payload=sig_payload,
+        builder=builder,
+    )
+    return _make_plot_item("z", fig, sheet_frequency_values(df_r), "Z_full_legend.png", "plot_z")
+
+
 def _rx_scatter_cache_keys(data_id: str, seq_label: str) -> Tuple[str, str, str, str]:
     prefix = f"{str(data_id)}:{str(seq_label)}"
     return (
@@ -2376,11 +2509,13 @@ def _sequence_y_titles(seq_label: str) -> Dict[str, str]:
             "r": "R1 (\u03A9)",
             "x": "X1 (\u03A9)",
             "xr": "X1/R1 (unitless)",
+            "z": "Z1 (\u03A9)",
         }
     return {
         "r": "R0 (\u03A9)",
         "x": "X0 (\u03A9)",
         "xr": "X0/R0 (unitless)",
+        "z": "Z0 (\u03A9)",
     }
 
 
@@ -2400,7 +2535,13 @@ def _compute_legend_entrywidth(cases: List[str], figure_width_px: int) -> int:
     return int(entrywidth)
 
 
-def _plot_order_from_flags(show_plot_rx: bool, show_plot_x: bool, show_plot_r: bool, show_plot_xr: bool) -> List[str]:
+def _plot_order_from_flags(
+    show_plot_rx: bool,
+    show_plot_x: bool,
+    show_plot_r: bool,
+    show_plot_xr: bool,
+    show_plot_z: bool,
+) -> List[str]:
     order: List[str] = []
     if show_plot_rx:
         order.append("rx")
@@ -2410,10 +2551,12 @@ def _plot_order_from_flags(show_plot_rx: bool, show_plot_x: bool, show_plot_r: b
         order.append("r")
     if show_plot_xr:
         order.append("xr")
+    if show_plot_z:
+        order.append("z")
     return order
 
 
-def _line_kind_order_from_flags(show_plot_x: bool, show_plot_r: bool, show_plot_xr: bool) -> List[str]:
+def _line_kind_order_from_flags(show_plot_x: bool, show_plot_r: bool, show_plot_xr: bool, show_plot_z: bool) -> List[str]:
     order: List[str] = []
     if show_plot_x:
         order.append("x")
@@ -2421,6 +2564,8 @@ def _line_kind_order_from_flags(show_plot_x: bool, show_plot_r: bool, show_plot_
         order.append("r")
     if show_plot_xr:
         order.append("xr")
+    if show_plot_z:
+        order.append("z")
     return order
 
 
@@ -2440,6 +2585,7 @@ def _plot_kind_label(kind: str) -> str:
         "x": "X",
         "r": "R",
         "xr": "X/R",
+        "z": "Z",
     }.get(str(kind), str(kind).upper())
 
 
@@ -2719,6 +2865,8 @@ def _render_enabled_plots(
             second_row_kinds.append("r")
         if ctx.show_plot_xr and "xr" in plot_items_by_kind:
             second_row_kinds.append("xr")
+        if ctx.show_plot_z and "z" in plot_items_by_kind:
+            second_row_kinds.append("z")
 
         rx_status_dom_id, rx_freq_steps = _render_selection_mode_row(
             row_kinds=first_row_kinds,
@@ -2788,6 +2936,7 @@ def main():
     show_plot_x = ctx.show_plot_x
     show_plot_r = ctx.show_plot_r
     show_plot_xr = ctx.show_plot_xr
+    show_plot_z = ctx.show_plot_z
     selection_mode_layout = ctx.selection_mode_layout
     render_auto_width = ctx.render_auto_width
     preselection_payload = ctx.preselection_payload
@@ -2812,7 +2961,7 @@ def main():
     legend_entrywidth = _compute_legend_entrywidth(legend_cases, figure_width_px)
 
     # Render order for currently enabled plots.
-    plot_order = _plot_order_from_flags(show_plot_rx, show_plot_x, show_plot_r, show_plot_xr)
+    plot_order = _plot_order_from_flags(show_plot_rx, show_plot_x, show_plot_r, show_plot_xr, show_plot_z)
 
     # Build plots
     build_location_caption = selected_location if selected_location else "<empty>"
@@ -2829,6 +2978,8 @@ def main():
         if show_plot_r:
             line_range_refs.append(sheet_frequency_values(df_r))
         if show_plot_xr:
+            line_range_refs.append(sheet_frequency_values(df_r))
+        if show_plot_z:
             line_range_refs.append(sheet_frequency_values(df_r))
         n_lo, n_hi = compute_common_n_range(line_range_refs, f_base)
 
@@ -2908,6 +3059,29 @@ def main():
             )
             plot_items.append(item_xr)
 
+        if show_plot_z:
+            plot_items.append(_build_cached_z_plot_item(
+                df_r=df_r,
+                df_x=df_x,
+                cases=cases_for_line,
+                data_id=data_id,
+                seq_label=seq_label,
+                f_base=f_base,
+                plot_height=plot_height,
+                smooth=smooth,
+                enable_spline=enable_spline,
+                legend_entrywidth=legend_entrywidth,
+                strip_location_suffix=strip_location_suffix,
+                render_auto_width=render_auto_width,
+                figure_width_px=figure_width_px,
+                case_colors=case_colors_line,
+                cases_sig=cases_sig,
+                colors_sig=line_colors_sig,
+                n_lo=float(n_lo),
+                n_hi=float(n_hi),
+                selection_mode_layout=bool(selection_mode_layout),
+            ))
+
     # Render
     _render_context_header(
         seq_label=str(seq_label),
@@ -2921,7 +3095,7 @@ def main():
     export_scale = int(EXPORT_IMAGE_SCALE)
     plot_items_by_kind = {str(it["kind"]): it for it in plot_items}
     line_plot_base_index = 1 if show_plot_rx else 0
-    line_kind_order = _line_kind_order_from_flags(show_plot_x, show_plot_r, show_plot_xr)
+    line_kind_order = _line_kind_order_from_flags(show_plot_x, show_plot_r, show_plot_xr, show_plot_z)
     line_plot_index_map = {kind: int(line_plot_base_index + idx) for idx, kind in enumerate(line_kind_order)}
     for kind, item in plot_items_by_kind.items():
         item["plot_index"] = int(line_plot_index_map.get(str(kind), line_plot_base_index))

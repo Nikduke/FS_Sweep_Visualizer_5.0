@@ -204,6 +204,8 @@ function createDefaultState(partOptions, colorByOptions, colorByDefault, showOnl
     methodIecCapacitiveOnly: false,
     methodPeakZEnabled: false,
     methodPeakZCapacitiveOnly: false,
+    methodPeakXEnabled: false,
+    methodPeakXCapacitiveOnly: false,
     methodRiskEnabled: false,
     methodRiskCapacitiveOnly: false,
     methodOutlierEnabled: false,
@@ -214,6 +216,7 @@ function createDefaultState(partOptions, colorByOptions, colorByDefault, showOnl
     methodEnerginetTopN: 0,
     methodIecTopN: 0,
     methodPeakZTopN: 10,
+    methodPeakXTopN: 10,
     methodRiskTopN: 10,
     methodOutlierTopN: 10,
     methodEnerginetCasesRaw: new Set(),
@@ -223,6 +226,9 @@ function createDefaultState(partOptions, colorByOptions, colorByDefault, showOnl
     methodPeakZCasesRaw: new Set(),
     methodPeakZCasesRawAll: new Set(),
     methodPeakZCasesRawCapacitive: new Set(),
+    methodPeakXCasesRaw: new Set(),
+    methodPeakXCasesRawAll: new Set(),
+    methodPeakXCasesRawCapacitive: new Set(),
     methodRiskCasesRaw: new Set(),
     methodRiskCasesRawAll: new Set(),
     methodRiskCasesRawCapacitive: new Set(),
@@ -260,6 +266,9 @@ function sanitizeState(state, casesMeta, partOptions, colorByOptions, colorByDef
   next.methodPeakZCasesRaw = toKnownCaseSet(next.methodPeakZCasesRaw, knownCaseIds);
   next.methodPeakZCasesRawAll = toKnownCaseSet(next.methodPeakZCasesRawAll, knownCaseIds);
   next.methodPeakZCasesRawCapacitive = toKnownCaseSet(next.methodPeakZCasesRawCapacitive, knownCaseIds);
+  next.methodPeakXCasesRaw = toKnownCaseSet(next.methodPeakXCasesRaw, knownCaseIds);
+  next.methodPeakXCasesRawAll = toKnownCaseSet(next.methodPeakXCasesRawAll, knownCaseIds);
+  next.methodPeakXCasesRawCapacitive = toKnownCaseSet(next.methodPeakXCasesRawCapacitive, knownCaseIds);
   next.methodRiskCasesRaw = toKnownCaseSet(next.methodRiskCasesRaw, knownCaseIds);
   next.methodRiskCasesRawAll = toKnownCaseSet(next.methodRiskCasesRawAll, knownCaseIds);
   next.methodRiskCasesRawCapacitive = toKnownCaseSet(next.methodRiskCasesRawCapacitive, knownCaseIds);
@@ -297,6 +306,8 @@ function sanitizeState(state, casesMeta, partOptions, colorByOptions, colorByDef
   next.methodIecCapacitiveOnly = Boolean(next.methodIecCapacitiveOnly);
   next.methodPeakZEnabled = Boolean(next.methodPeakZEnabled);
   next.methodPeakZCapacitiveOnly = Boolean(next.methodPeakZCapacitiveOnly);
+  next.methodPeakXEnabled = Boolean(next.methodPeakXEnabled);
+  next.methodPeakXCapacitiveOnly = Boolean(next.methodPeakXCapacitiveOnly);
   next.methodRiskEnabled = Boolean(next.methodRiskEnabled);
   next.methodRiskCapacitiveOnly = Boolean(next.methodRiskCapacitiveOnly);
   next.methodOutlierEnabled = Boolean(next.methodOutlierEnabled);
@@ -305,6 +316,7 @@ function sanitizeState(state, casesMeta, partOptions, colorByOptions, colorByDef
     next.methodIecCapacitiveOnly = false;
   }
   if (!next.methodPeakZEnabled) next.methodPeakZCapacitiveOnly = false;
+  if (!next.methodPeakXEnabled) next.methodPeakXCapacitiveOnly = false;
   if (!next.methodRiskEnabled) next.methodRiskCapacitiveOnly = false;
   if (!next.methodOutlierEnabled) next.methodOutlierCapacitiveOnly = false;
   const th = preselectionThresholdDefaults();
@@ -317,6 +329,7 @@ function sanitizeState(state, casesMeta, partOptions, colorByOptions, colorByDef
   next.methodEnerginetTopN = normalizeTopN(next.methodEnerginetTopN);
   next.methodIecTopN = normalizeTopN(next.methodIecTopN);
   next.methodPeakZTopN = next.methodPeakZTopN == null ? 10 : normalizeTopN(next.methodPeakZTopN);
+  next.methodPeakXTopN = next.methodPeakXTopN == null ? 10 : normalizeTopN(next.methodPeakXTopN);
   next.methodRiskTopN = next.methodRiskTopN == null ? 10 : normalizeTopN(next.methodRiskTopN);
   next.methodOutlierTopN = next.methodOutlierTopN == null ? 10 : normalizeTopN(next.methodOutlierTopN);
   next.showOnlySelected = toStrictBool(next.showOnlySelected, false);
@@ -372,6 +385,8 @@ function ensureContext() {
     state.methodIecCapacitiveOnly = false;
     state.methodPeakZEnabled = false;
     state.methodPeakZCapacitiveOnly = false;
+    state.methodPeakXEnabled = false;
+    state.methodPeakXCapacitiveOnly = false;
     state.methodRiskEnabled = false;
     state.methodRiskCapacitiveOnly = false;
     state.methodOutlierEnabled = false;
@@ -383,6 +398,9 @@ function ensureContext() {
     state.methodPeakZCasesRaw = new Set();
     state.methodPeakZCasesRawAll = new Set();
     state.methodPeakZCasesRawCapacitive = new Set();
+    state.methodPeakXCasesRaw = new Set();
+    state.methodPeakXCasesRawAll = new Set();
+    state.methodPeakXCasesRawCapacitive = new Set();
     state.methodRiskCasesRaw = new Set();
     state.methodRiskCasesRawAll = new Set();
     state.methodRiskCasesRawCapacitive = new Set();
@@ -560,9 +578,35 @@ function getPreselectionForBase(ctx) {
   const byF1 = payload.by_f1 && typeof payload.by_f1 === "object" ? payload.by_f1 : {};
   const baseFromArgs = Number(latestArgs && latestArgs.f_base != null ? latestArgs.f_base : ctx.state.baseFrequencyHz);
   const baseKey = String(Math.round(Number.isFinite(baseFromArgs) ? baseFromArgs : 50));
-  const keys = Object.keys(byF1);
-  const candidate = byF1[baseKey] || (keys.length ? byF1[keys[0]] : null);
+  const candidate = byF1[baseKey] || null;
   return candidate && typeof candidate === "object" ? candidate : null;
+}
+
+function preselectionBaseSignature(baseData) {
+  if (!baseData || typeof baseData !== "object") return "";
+  const modeLen = (modesName, modeName) => {
+    try {
+      const modes = baseData[modesName] && typeof baseData[modesName] === "object" ? baseData[modesName] : {};
+      const node = modes[modeName] && typeof modes[modeName] === "object" ? modes[modeName] : {};
+      return Array.isArray(node.case_idx) ? node.case_idx.length : 0;
+    } catch (e) {
+      return 0;
+    }
+  };
+  const ids = Array.isArray(baseData.case_ids) ? baseData.case_ids : [];
+  return [
+    ids.length,
+    modeLen("iec_modes", "all"),
+    modeLen("iec_modes", "capacitive"),
+    modeLen("peak_z_modes", "all"),
+    modeLen("peak_z_modes", "capacitive"),
+    modeLen("peak_x_modes", "all"),
+    modeLen("peak_x_modes", "capacitive"),
+    modeLen("risk_modes", "all"),
+    modeLen("risk_modes", "capacitive"),
+    modeLen("outlier_modes", "all"),
+    modeLen("outlier_modes", "capacitive"),
+  ].join(":");
 }
 
 function getCompactCaseIndexMap(baseData) {
@@ -792,11 +836,13 @@ function isCaseSelectedByActiveMethod(state, caseId) {
   const energinetSet = state.methodEnerginetCasesRaw instanceof Set ? state.methodEnerginetCasesRaw : new Set();
   const iecSet = state.methodIecCasesRaw instanceof Set ? state.methodIecCasesRaw : new Set();
   const peakZSet = state.methodPeakZCasesRaw instanceof Set ? state.methodPeakZCasesRaw : new Set();
+  const peakXSet = state.methodPeakXCasesRaw instanceof Set ? state.methodPeakXCasesRaw : new Set();
   const riskSet = state.methodRiskCasesRaw instanceof Set ? state.methodRiskCasesRaw : new Set();
   const outlierSet = state.methodOutlierCasesRaw instanceof Set ? state.methodOutlierCasesRaw : new Set();
   if (Boolean(state.methodEnerginetEnabled) && energinetSet.has(caseId)) return true;
   if (Boolean(state.methodIecEnabled) && iecSet.has(caseId)) return true;
   if (Boolean(state.methodPeakZEnabled) && peakZSet.has(caseId)) return true;
+  if (Boolean(state.methodPeakXEnabled) && peakXSet.has(caseId)) return true;
   if (Boolean(state.methodRiskEnabled) && riskSet.has(caseId)) return true;
   if (Boolean(state.methodOutlierEnabled) && outlierSet.has(caseId)) return true;
   return false;
@@ -807,18 +853,22 @@ function recomputeSelectedCases(ctx) {
   const st = ctx.state;
   const excluded = st.methodExcludedCases instanceof Set ? st.methodExcludedCases : new Set();
   const baseFromArgs = Number(latestArgs && latestArgs.f_base != null ? latestArgs.f_base : st.baseFrequencyHz);
+  const baseData = getPreselectionForBase(ctx);
   const iecModeKey = Boolean(st.methodIecCapacitiveOnly) ? "capacitive" : "all";
   const peakZModeKey = Boolean(st.methodPeakZCapacitiveOnly) ? "capacitive" : "all";
+  const peakXModeKey = Boolean(st.methodPeakXCapacitiveOnly) ? "capacitive" : "all";
   const riskModeKey = Boolean(st.methodRiskCapacitiveOnly) ? "capacitive" : "all";
   const outlierModeKey = Boolean(st.methodOutlierCapacitiveOnly) ? "capacitive" : "all";
   const cacheKey = [
     Number.isFinite(baseFromArgs) ? Number(baseFromArgs) : 0,
+    preselectionBaseSignature(baseData),
     Number(st.energinetT2 || 0),
     Number(st.energinetT3 || 0),
     Number(st.energinetT4 || 0),
     Number(st.methodEnerginetTopN || 0),
     Number(st.methodIecTopN || 0),
     Number(st.methodPeakZTopN || 0),
+    Number(st.methodPeakXTopN || 0),
     Number(st.methodRiskTopN || 0),
     Number(st.methodOutlierTopN || 0),
   ].join("|");
@@ -828,6 +878,8 @@ function recomputeSelectedCases(ctx) {
   let rawIecCapacitive = st.methodIecCasesRawCapacitive instanceof Set ? st.methodIecCasesRawCapacitive : new Set();
   let rawPeakZAll = st.methodPeakZCasesRawAll instanceof Set ? st.methodPeakZCasesRawAll : new Set();
   let rawPeakZCapacitive = st.methodPeakZCasesRawCapacitive instanceof Set ? st.methodPeakZCasesRawCapacitive : new Set();
+  let rawPeakXAll = st.methodPeakXCasesRawAll instanceof Set ? st.methodPeakXCasesRawAll : new Set();
+  let rawPeakXCapacitive = st.methodPeakXCasesRawCapacitive instanceof Set ? st.methodPeakXCasesRawCapacitive : new Set();
   let rawRiskAll = st.methodRiskCasesRawAll instanceof Set ? st.methodRiskCasesRawAll : new Set();
   let rawRiskCapacitive = st.methodRiskCasesRawCapacitive instanceof Set ? st.methodRiskCasesRawCapacitive : new Set();
   let rawOutlierAll = st.methodOutlierCasesRawAll instanceof Set ? st.methodOutlierCasesRawAll : new Set();
@@ -839,6 +891,8 @@ function recomputeSelectedCases(ctx) {
     || !(st.methodIecCasesRawCapacitive instanceof Set)
     || !(st.methodPeakZCasesRawAll instanceof Set)
     || !(st.methodPeakZCasesRawCapacitive instanceof Set)
+    || !(st.methodPeakXCasesRawAll instanceof Set)
+    || !(st.methodPeakXCasesRawCapacitive instanceof Set)
     || !(st.methodRiskCasesRawAll instanceof Set)
     || !(st.methodRiskCasesRawCapacitive instanceof Set)
     || !(st.methodOutlierCasesRawAll instanceof Set)
@@ -849,6 +903,8 @@ function recomputeSelectedCases(ctx) {
     rawIecCapacitive = computeIecCandidatesForMode(ctx, "capacitive");
     rawPeakZAll = computeRankedModeCandidates(ctx, "peak_z_modes", "all", st.methodPeakZTopN);
     rawPeakZCapacitive = computeRankedModeCandidates(ctx, "peak_z_modes", "capacitive", st.methodPeakZTopN);
+    rawPeakXAll = computeRankedModeCandidates(ctx, "peak_x_modes", "all", st.methodPeakXTopN);
+    rawPeakXCapacitive = computeRankedModeCandidates(ctx, "peak_x_modes", "capacitive", st.methodPeakXTopN);
     rawRiskAll = computeRankedModeCandidates(ctx, "risk_modes", "all", st.methodRiskTopN);
     rawRiskCapacitive = computeRankedModeCandidates(ctx, "risk_modes", "capacitive", st.methodRiskTopN);
     rawOutlierAll = computeRankedModeCandidates(ctx, "outlier_modes", "all", st.methodOutlierTopN);
@@ -858,6 +914,8 @@ function recomputeSelectedCases(ctx) {
     st.methodIecCasesRawCapacitive = rawIecCapacitive;
     st.methodPeakZCasesRawAll = rawPeakZAll;
     st.methodPeakZCasesRawCapacitive = rawPeakZCapacitive;
+    st.methodPeakXCasesRawAll = rawPeakXAll;
+    st.methodPeakXCasesRawCapacitive = rawPeakXCapacitive;
     st.methodRiskCasesRawAll = rawRiskAll;
     st.methodRiskCasesRawCapacitive = rawRiskCapacitive;
     st.methodOutlierCasesRawAll = rawOutlierAll;
@@ -866,10 +924,12 @@ function recomputeSelectedCases(ctx) {
   }
   const rawIec = iecModeKey === "capacitive" ? rawIecCapacitive : rawIecAll;
   const rawPeakZ = peakZModeKey === "capacitive" ? rawPeakZCapacitive : rawPeakZAll;
+  const rawPeakX = peakXModeKey === "capacitive" ? rawPeakXCapacitive : rawPeakXAll;
   const rawRisk = riskModeKey === "capacitive" ? rawRiskCapacitive : rawRiskAll;
   const rawOutlier = outlierModeKey === "capacitive" ? rawOutlierCapacitive : rawOutlierAll;
   st.methodIecCasesRaw = rawIec;
   st.methodPeakZCasesRaw = rawPeakZ;
+  st.methodPeakXCasesRaw = rawPeakX;
   st.methodRiskCasesRaw = rawRisk;
   st.methodOutlierCasesRaw = rawOutlier;
 
@@ -886,6 +946,11 @@ function recomputeSelectedCases(ctx) {
   }
   if (Boolean(st.methodPeakZEnabled)) {
     for (const cid of rawPeakZ) {
+      if (!excluded.has(cid)) derived.add(cid);
+    }
+  }
+  if (Boolean(st.methodPeakXEnabled)) {
+    for (const cid of rawPeakX) {
       if (!excluded.has(cid)) derived.add(cid);
     }
   }
@@ -2440,6 +2505,8 @@ function bindPanelEvents(ctx, rows) {
       ctx.state.methodIecCapacitiveOnly = false;
       ctx.state.methodPeakZEnabled = false;
       ctx.state.methodPeakZCapacitiveOnly = false;
+      ctx.state.methodPeakXEnabled = false;
+      ctx.state.methodPeakXCapacitiveOnly = false;
       ctx.state.methodRiskEnabled = false;
       ctx.state.methodRiskCapacitiveOnly = false;
       ctx.state.methodOutlierEnabled = false;

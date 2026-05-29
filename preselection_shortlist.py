@@ -445,6 +445,49 @@ def _compute_peak_z_ranking(
     return _ranked_rows_payload(rows, top_n_scope="per_harmonic")
 
 
+def _compute_peak_x_ranking(
+    x_map: Dict[str, np.ndarray],
+    cases: Sequence[str],
+    band_indices: Dict[int, np.ndarray],
+    capacitive_only: bool = False,
+) -> Dict[str, object]:
+    case_set = {str(c) for c in cases}
+    rows: List[Dict[str, object]] = []
+    for n in sorted(int(k) for k in band_indices.keys()):
+        b_idx = band_indices.get(int(n), np.asarray([], dtype=int))
+        if b_idx.size == 0:
+            continue
+        for case in cases:
+            cid = str(case)
+            if cid not in case_set or cid not in x_map:
+                continue
+            x_vals = np.asarray(x_map[cid], dtype=float)[b_idx]
+            valid = np.isfinite(x_vals)
+            if bool(capacitive_only):
+                valid = valid & (x_vals < 0.0)
+                scores = np.where(valid, -x_vals, np.nan)
+            else:
+                scores = np.where(valid, np.abs(x_vals), np.nan)
+            if not np.any(np.isfinite(scores)):
+                continue
+            score = float(np.nanmax(scores))
+            tol = 1e-12 * max(1.0, abs(score))
+            local_idx_candidates = np.where(np.isclose(scores, score, rtol=0.0, atol=tol))[0]
+            if local_idx_candidates.size == 0:
+                local_idx_candidates = np.where(scores == score)[0]
+            if local_idx_candidates.size == 0:
+                continue
+            rows.append(
+                {
+                    "case_id": cid,
+                    "score": score,
+                    "zmax": score,
+                    "harmonic": int(n),
+                }
+            )
+    return _ranked_rows_payload(rows, top_n_scope="per_harmonic")
+
+
 def _robust_scale(values: np.ndarray) -> Tuple[float, float]:
     vals = np.asarray(values, dtype=float)
     vals = vals[np.isfinite(vals)]
@@ -680,6 +723,8 @@ def build_preselection_payload(
         )
         peak_z_all = _compute_peak_z_ranking(harmonic_points, chosen_cases)
         peak_z_capacitive = _compute_peak_z_ranking(harmonic_points_capacitive, chosen_cases)
+        peak_x_all = _compute_peak_x_ranking(x_map, chosen_cases, band_indices, capacitive_only=False)
+        peak_x_capacitive = _compute_peak_x_ranking(x_map, chosen_cases, band_indices, capacitive_only=True)
         risk_all = _compute_risk_ranking(harmonic_points, chosen_cases, f1_val)
         risk_capacitive = _compute_risk_ranking(harmonic_points_capacitive, chosen_cases, f1_val)
         outlier_all = _compute_outlier_ranking(harmonic_points, chosen_cases)
@@ -706,6 +751,10 @@ def build_preselection_payload(
             "peak_z_modes": {
                 "all": dict(peak_z_all),
                 "capacitive": dict(peak_z_capacitive),
+            },
+            "peak_x_modes": {
+                "all": dict(peak_x_all),
+                "capacitive": dict(peak_x_capacitive),
             },
             "risk_modes": {
                 "all": dict(risk_all),

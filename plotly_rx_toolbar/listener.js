@@ -209,6 +209,9 @@ function syncSelectionControls(stateKey, force) {
     const cbPeakZ = document.getElementById("rx-method-peakz");
     const cbPeakZCapacitive = document.getElementById("rx-peakz-capacitive");
     const peakZCapacitiveLbl = document.getElementById("rx-peakz-capacitive-label");
+    const cbPeakX = document.getElementById("rx-method-peakx");
+    const cbPeakXCapacitive = document.getElementById("rx-peakx-capacitive");
+    const peakXCapacitiveLbl = document.getElementById("rx-peakx-capacitive-label");
     const cbRisk = document.getElementById("rx-method-risk");
     const cbRiskCapacitive = document.getElementById("rx-risk-capacitive");
     const riskCapacitiveLbl = document.getElementById("rx-risk-capacitive-label");
@@ -221,6 +224,7 @@ function syncSelectionControls(stateKey, force) {
     const enTopN = document.getElementById("rx-en-topn");
     const iecTopN = document.getElementById("rx-iec-topn");
     const peakZTopN = document.getElementById("rx-peakz-topn");
+    const peakXTopN = document.getElementById("rx-peakx-topn");
     const riskTopN = document.getElementById("rx-risk-topn");
     const outlierTopN = document.getElementById("rx-outlier-topn");
     const freqInput = document.getElementById("rx-freq");
@@ -274,6 +278,20 @@ function syncSelectionControls(stateKey, force) {
     if (peakZCapacitiveLbl) {
       peakZCapacitiveLbl.textContent = `Capacitive (${Number(st.peakZCapacitiveCandidateCount || 0)})`;
     }
+    if (cbPeakX) {
+      cbPeakX.disabled = !preselectionAvailable;
+      cbPeakX.checked = preselectionAvailable && Boolean(st.peakXEnabled);
+      const lbl = document.getElementById("rx-method-peakx-label");
+      if (lbl) lbl.textContent = `Peak X (${Number(st.peakXCandidateCount || 0)})`;
+    }
+    if (cbPeakXCapacitive) {
+      const on = preselectionAvailable && Boolean(st.peakXEnabled);
+      cbPeakXCapacitive.disabled = !on;
+      cbPeakXCapacitive.checked = on && Boolean(st.peakXCapacitiveOnly);
+    }
+    if (peakXCapacitiveLbl) {
+      peakXCapacitiveLbl.textContent = `Capacitive (${Number(st.peakXCapacitiveCandidateCount || 0)})`;
+    }
     if (cbRisk) {
       cbRisk.disabled = !preselectionAvailable;
       cbRisk.checked = preselectionAvailable && Boolean(st.riskEnabled);
@@ -325,6 +343,10 @@ function syncSelectionControls(stateKey, force) {
     if (peakZTopN) {
       peakZTopN.disabled = !preselectionAvailable;
       setInputValueSafe(peakZTopN, Number(st.peakZTopN != null ? st.peakZTopN : 10));
+    }
+    if (peakXTopN) {
+      peakXTopN.disabled = !preselectionAvailable;
+      setInputValueSafe(peakXTopN, Number(st.peakXTopN != null ? st.peakXTopN : 10));
     }
     if (riskTopN) {
       riskTopN.disabled = !preselectionAvailable;
@@ -723,6 +745,19 @@ function render() {
               <span id="rx-peakz-capacitive-label">Capacitive (0)</span>
             </label>
           </div>
+          <div class="rx-label">Peak X</div>
+          <div class="rx-row">
+            <label class="rx-method-check">
+              <input id="rx-method-peakx" type="checkbox" />
+              <span id="rx-method-peakx-label">Peak X</span>
+              <span class="rx-help" title="Reactance peak screen: ranks strongest |X| inside each harmonic band from 2nd to 6th. Top N/h selects Top N per harmonic, then unions cases. Capacitive uses X < 0 points only and ranks most negative X." aria-label="Peak X method help">?</span>
+            </label>
+            <label class="rx-th rx-input-short">Top N/h <input id="rx-peakx-topn" type="number" min="0" step="1" value="10" /></label>
+            <label class="rx-method-check">
+              <input id="rx-peakx-capacitive" type="checkbox" />
+              <span id="rx-peakx-capacitive-label">Capacitive (0)</span>
+            </label>
+          </div>
           <div class="rx-label">Risk</div>
           <div class="rx-row">
             <label class="rx-method-check">
@@ -777,6 +812,8 @@ function render() {
   const iecCapacitiveCb = document.getElementById("rx-iec-capacitive");
   const peakZCb = document.getElementById("rx-method-peakz");
   const peakZCapacitiveCb = document.getElementById("rx-peakz-capacitive");
+  const peakXCb = document.getElementById("rx-method-peakx");
+  const peakXCapacitiveCb = document.getElementById("rx-peakx-capacitive");
   const riskCb = document.getElementById("rx-method-risk");
   const riskCapacitiveCb = document.getElementById("rx-risk-capacitive");
   const outlierCb = document.getElementById("rx-method-outlier");
@@ -787,6 +824,7 @@ function render() {
   const enTopN = document.getElementById("rx-en-topn");
   const iecTopN = document.getElementById("rx-iec-topn");
   const peakZTopN = document.getElementById("rx-peakz-topn");
+  const peakXTopN = document.getElementById("rx-peakx-topn");
   const riskTopN = document.getElementById("rx-risk-topn");
   const outlierTopN = document.getElementById("rx-outlier-topn");
   const clearSelectionBtn = document.getElementById("rx-clear-selection");
@@ -892,6 +930,16 @@ function render() {
       pushRankedCapacitiveMode(stateKey, "setPeakZCapacitiveOnly", Boolean(peakZCapacitiveCb.checked));
     });
   }
+  if (peakXCb) {
+    peakXCb.addEventListener("change", () => {
+      pushMethodEnabled(stateKey, "setPeakXEnabled", Boolean(peakXCb.checked));
+    });
+  }
+  if (peakXCapacitiveCb) {
+    peakXCapacitiveCb.addEventListener("change", () => {
+      pushRankedCapacitiveMode(stateKey, "setPeakXCapacitiveOnly", Boolean(peakXCapacitiveCb.checked));
+    });
+  }
   if (riskCb) {
     riskCb.addEventListener("change", () => {
       pushMethodEnabled(stateKey, "setRiskEnabled", Boolean(riskCb.checked));
@@ -934,6 +982,7 @@ function render() {
     { el: enTopN, push: () => pushEnerginetTopN(stateKey) },
     { el: iecTopN, push: () => pushIecTopN(stateKey) },
     { el: peakZTopN, push: () => pushRankedTopN(stateKey, "rx-peakz-topn", "setPeakZTopN") },
+    { el: peakXTopN, push: () => pushRankedTopN(stateKey, "rx-peakx-topn", "setPeakXTopN") },
     { el: riskTopN, push: () => pushRankedTopN(stateKey, "rx-risk-topn", "setRiskTopN") },
     { el: outlierTopN, push: () => pushRankedTopN(stateKey, "rx-outlier-topn", "setOutlierTopN") },
   ].filter((row) => Boolean(row.el));

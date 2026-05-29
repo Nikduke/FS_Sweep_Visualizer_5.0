@@ -11,7 +11,7 @@ This document reflects:
 ## Scope
 
 The app renders:
-- `X`, `R`, `X/R` line plots
+- `X`, `R`, `X/R`, `Z` line plots
 - optional `R vs X` scatter
 
 Core design:
@@ -20,7 +20,7 @@ Core design:
 - JS-heavy UI helpers are externalized into dedicated component assets (no large inline JS blocks in Python).
 - deterministic preselection metrics are computed server-side once per context and consumed client-side without rerun.
 - default layout renders `R vs X` scatter before line plots in the main area.
-- optional `Selection mode` changes layout only: row 1 is `R vs X` + `X`, row 2 is `R` + `X/R` for enabled plots.
+- optional `Selection mode` changes layout only: row 1 is `R vs X` + `X`, row 2 is `R` + `X/R` + `Z` for enabled plots.
 - data-scoped Streamlit cache keys are pruned on file/context changes to avoid stale-session growth.
 - JS widget state/API stores are pruned to the active `{data_id}|{chart_id}` context.
 - JS cross-component state names are explicit component contracts:
@@ -29,7 +29,7 @@ Core design:
   - `fsCaseUiStateChanged` notifies sibling components after no-rerun state changes.
 - selected-location preselection payload is cached in session state by:
   - `preselection_payload:{data_id}:{seq_label}:{location}` (single active base payload, overwritten on base switch).
-  - payload sent to JS uses compact array/index format (`compact_v3`) to reduce rerun transfer size.
+  - payload sent to JS uses compact array/index format (`compact_v4`) to reduce rerun transfer size.
 - on chart-context switches (`base frequency`, `location`, `Positive/Zero` sequence), heavy sequence caches are evicted before rebuild to reduce peak-memory spikes on constrained hosts.
 - non-active sequence/location/chart cache entries are pruned proactively in the same data session.
 - uploaded workbooks are parsed once and cached as live `SweepSheet` objects in session state:
@@ -82,11 +82,11 @@ Core design:
    - the panel owns its own dynamic frame height so following controls do not cover it
 4. `Show plots`
    - `R vs X scatter` remains the first checkbox row
-   - `X`, `R`, and `X/R` checkboxes share one compact row
+   - `X`, `R`, `X/R`, and `Z` checkboxes share one compact row
    - line-plot export buttons are no longer embedded in this sidebar section
    - `Selection mode` checkbox is last and changes layout only:
      - `R vs X` and `X` share the first row evenly when both are enabled
-     - `R` and `X/R` share the second row evenly when both are enabled
+      - `R`, `X/R`, and `Z` share the second row evenly when enabled
      - a single enabled plot in a row uses full width
      - charts stretch to the available column width while this mode is enabled
      - line-plot legends are hidden in this compact selection layout so the plot heights stay visually aligned
@@ -119,6 +119,7 @@ Rendered by `plotly_selection_bridge`:
   - `Energinet` toggle + editable `T2/T3/T4` + `Top N`
   - `RX hull` toggle + `Top N/h` + `Capacitive (N)`
   - `Peak |Z|` toggle + `Top N/h` + `Capacitive (N)`
+  - `Peak X` toggle + `Top N/h` + `Capacitive (N)`
   - `Risk` toggle + `Top N` + `Capacitive (N)`
   - `Outliers` toggle + `Top N` + `Capacitive (N)`
   - capacitive modes are computed inside each method from negative-X points (`X < 0`), not by post-filtering normal results
@@ -130,9 +131,10 @@ Rendered by `plotly_selection_bridge`:
 - `Energinet`: ranks cases where harmonic-band peak `|Z|` exceeds editable thresholds at 2nd/3rd/4th harmonic. Score is the maximum threshold ratio.
 - `RX hull`: for each harmonic from 2 to available range capped at 6, finds each case's harmonic-band peak `|Z|` point in R/X space and selects convex-hull vertices. `Top N/h` keeps the strongest hull cases inside each harmonic, then unions cases across harmonics.
 - `Peak |Z|`: ranks cases separately within each harmonic band over harmonics 2..6. `Top N/h` selects the top N cases per harmonic and uses the union of those cases.
+- `Peak X`: ranks cases separately within each harmonic band over harmonics 2..6 by strongest `abs(X)`. `Top N/h` selects the top N cases per harmonic and uses the union of those cases.
 - `Risk`: ranks cases by weighted score from normalized peak `|Z|`, robust local prominence over cohort median/MAD, area above cohort median, damping proxy `log1p(|Z| / max(|R|, 1))`, and proximity to harmonic center.
 - `Outliers`: selects robust outliers by harmonic-band peak `|Z|` using MAD z-score threshold `3.5`; if MAD collapses, uses 95th percentile fallback.
-- For `RX hull`, `Peak |Z|`, `Risk`, and `Outliers`, `Capacitive` mode recomputes the method using only candidate points with `X < 0`; for `RX hull` and `Peak |Z|`, this is still Top N per harmonic.
+- For `RX hull`, `Peak |Z|`, `Peak X`, `Risk`, and `Outliers`, `Capacitive` mode recomputes the method using only candidate points with `X < 0`; for `Peak X`, capacitive mode ranks most negative `X` (`-X`). For `RX hull`, `Peak |Z|`, and `Peak X`, this is still Top N per harmonic.
 
 ## Visibility And Legend Rules
 
@@ -179,7 +181,7 @@ Line x-axis implementation:
   - `<count>` is case-filtered visible point count.
 - modebar `Reset axes` returns to location-based baseline bounds.
 - click selection toggles by case id and feeds shared JS state.
-- line plots (`X`, `R`, `X/R`) also support click selection by case id and feed the same shared JS selection state.
+- line plots (`X`, `R`, `X/R`, `Z`) also support click selection by case id and feed the same shared JS selection state.
 - selected point styling:
   - selected visible points use symbol `diamond`
   - non-selected points keep `circle`
@@ -205,6 +207,7 @@ Line x-axis implementation:
 - legend column width is auto-calculated internally (not user-configured in sidebar).
 - modebar export remains available.
 - line full-legend export (`Export PNG` above each line plot) reads current line visibility/style state.
+- `Z` plot is derived as `sqrt(R^2 + X^2)` from the active sequence sheets and is off by default.
 - scatter export (`Export PNG` above `R vs X`) reads current scatter state and adds a manual legend for selected visible cases.
 - scatter export omits the web-only frequency slider from the PNG so the manual legend sits below the axis cleanly.
 - hidden cases are excluded from export legend.

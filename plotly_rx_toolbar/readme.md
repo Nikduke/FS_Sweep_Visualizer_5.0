@@ -12,6 +12,7 @@ Responsibilities:
   - `Energinet` toggle with editable `T2/T3/T4` thresholds and `Top N`
   - `RX hull` toggle with `Top N/h` and `Capacitive (N)`; it selects strongest hull cases per harmonic, then uses their union
   - `Peak |Z|` toggle with `Top N/h` and `Capacitive (N)`; it selects top cases per harmonic, then uses their union
+  - `Peak X` toggle with `Top N/h` and `Capacitive (N)`; it selects strongest `abs(X)` cases per harmonic, then uses their union
   - `Risk` toggle with `Top N` and `Capacitive (N)`
   - `Outliers` toggle with `Top N` and `Capacitive (N)`
   - each row has a compact `?` hover note explaining the method

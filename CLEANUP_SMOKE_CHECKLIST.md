@@ -23,10 +23,10 @@ Run this checklist after local refactor batches. Do not commit/push unless expli
 ## Plot Visibility
 
 - Toggle `R vs X scatter`.
-- Toggle `X`, `R`, `X/R`.
+- Toggle `X`, `R`, `X/R`, `Z`.
 - Toggle `Selection mode`.
 - Confirm default layout still stacks scatter then line plots.
-- Confirm selection mode row 1 is scatter + `X`; row 2 is `R` + `X/R`.
+- Confirm selection mode row 1 is scatter + `X`; row 2 is enabled `R` + `X/R` + `Z`.
 
 ## Selection / Filters
 
@@ -60,5 +60,5 @@ Run this checklist after local refactor batches. Do not commit/push unless expli
 
 ## Export
 
-- Export `X`, `R`, and `X/R` PNG when enabled.
+- Export `X`, `R`, `X/R`, and `Z` PNG when enabled.
 - Confirm selected-only legend state is reflected in export.

@@ -1,7 +1,9 @@
 import unittest
 
+import numpy as np
+
 from fs_sweep_app_spline import _compact_preselection_payload
-from preselection_shortlist import _ranked_rows_payload
+from preselection_shortlist import _compute_peak_x_ranking, _ranked_rows_payload
 
 
 class RankedPayloadTests(unittest.TestCase):
@@ -61,6 +63,7 @@ class RankedPayloadTests(unittest.TestCase):
                             },
                         },
                         "peak_z_modes": {"all": ranked, "capacitive": ranked},
+                        "peak_x_modes": {"all": ranked, "capacitive": ranked},
                         "risk_modes": {"all": ranked, "capacitive": ranked},
                         "outlier_modes": {"all": ranked, "capacitive": ranked},
                     }
@@ -69,7 +72,7 @@ class RankedPayloadTests(unittest.TestCase):
         )
 
         node = compact["by_f1"]["50"]
-        self.assertEqual(compact["format"], "compact_v3")
+        self.assertEqual(compact["format"], "compact_v4")
         self.assertEqual(node["case_ids"], ["B"])
         self.assertEqual(node["iec_modes"]["all"]["case_idx"], [0])
         self.assertEqual(node["iec_modes"]["all"]["vertex_orders"], [[2, 4]])
@@ -77,6 +80,23 @@ class RankedPayloadTests(unittest.TestCase):
         self.assertEqual(node["iec_modes"]["all"]["top_n_scope"], "per_harmonic")
         self.assertEqual(node["risk_modes"]["all"]["case_idx"], [0])
         self.assertEqual(node["risk_modes"]["all"]["scores"], [4.0])
+
+    def test_peak_x_ranking_uses_harmonic_bands_and_capacitive_mode(self):
+        x_map = {
+            "A": np.asarray([1.0, -20.0, 4.0, -1.0]),
+            "B": np.asarray([2.0, -5.0, -30.0, 3.0]),
+            "C": np.asarray([50.0, 4.0, 2.0, 1.0]),
+        }
+        band_indices = {3: np.asarray([1, 2], dtype=int)}
+
+        full = _compute_peak_x_ranking(x_map, ["A", "B", "C"], band_indices, capacitive_only=False)
+        cap = _compute_peak_x_ranking(x_map, ["A", "B", "C"], band_indices, capacitive_only=True)
+
+        self.assertEqual(full["top_n_scope"], "per_harmonic")
+        self.assertEqual(full["case_ids"], ["B", "A", "C"])
+        self.assertEqual(full["scores"], [30.0, 20.0, 4.0])
+        self.assertEqual(cap["case_ids"], ["B", "A"])
+        self.assertEqual(cap["scores"], [30.0, 20.0])
 
 
 if __name__ == "__main__":

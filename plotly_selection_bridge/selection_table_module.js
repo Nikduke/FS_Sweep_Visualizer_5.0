@@ -109,6 +109,7 @@ function anyMethodEnabled(state) {
     st.methodEnerginetEnabled
     || st.methodIecEnabled
     || st.methodPeakZEnabled
+    || st.methodPeakXEnabled
     || st.methodRiskEnabled
     || st.methodOutlierEnabled,
   );
@@ -135,6 +136,9 @@ function registerExternalSelectionApi(ctx) {
       const peakZRawSet = st.methodPeakZCasesRaw instanceof Set ? st.methodPeakZCasesRaw : new Set();
       const peakZAllRawSet = st.methodPeakZCasesRawAll instanceof Set ? st.methodPeakZCasesRawAll : peakZRawSet;
       const peakZCapacitiveRawSet = st.methodPeakZCasesRawCapacitive instanceof Set ? st.methodPeakZCasesRawCapacitive : peakZRawSet;
+      const peakXRawSet = st.methodPeakXCasesRaw instanceof Set ? st.methodPeakXCasesRaw : new Set();
+      const peakXAllRawSet = st.methodPeakXCasesRawAll instanceof Set ? st.methodPeakXCasesRawAll : peakXRawSet;
+      const peakXCapacitiveRawSet = st.methodPeakXCasesRawCapacitive instanceof Set ? st.methodPeakXCasesRawCapacitive : peakXRawSet;
       const riskRawSet = st.methodRiskCasesRaw instanceof Set ? st.methodRiskCasesRaw : new Set();
       const riskAllRawSet = st.methodRiskCasesRawAll instanceof Set ? st.methodRiskCasesRawAll : riskRawSet;
       const riskCapacitiveRawSet = st.methodRiskCasesRawCapacitive instanceof Set ? st.methodRiskCasesRawCapacitive : riskRawSet;
@@ -158,6 +162,9 @@ function registerExternalSelectionApi(ctx) {
       const peakZVisible = countVisible(peakZRawSet);
       const peakZAllVisible = countVisible(peakZAllRawSet);
       const peakZCapacitiveVisible = countVisible(peakZCapacitiveRawSet);
+      const peakXVisible = countVisible(peakXRawSet);
+      const peakXAllVisible = countVisible(peakXAllRawSet);
+      const peakXCapacitiveVisible = countVisible(peakXCapacitiveRawSet);
       const riskVisible = countVisible(riskRawSet);
       const riskAllVisible = countVisible(riskAllRawSet);
       const riskCapacitiveVisible = countVisible(riskCapacitiveRawSet);
@@ -186,6 +193,8 @@ function registerExternalSelectionApi(ctx) {
         iecCapacitiveOnly: Boolean(st.methodIecCapacitiveOnly),
         peakZEnabled: Boolean(st.methodPeakZEnabled),
         peakZCapacitiveOnly: Boolean(st.methodPeakZCapacitiveOnly),
+        peakXEnabled: Boolean(st.methodPeakXEnabled),
+        peakXCapacitiveOnly: Boolean(st.methodPeakXCapacitiveOnly),
         riskEnabled: Boolean(st.methodRiskEnabled),
         riskCapacitiveOnly: Boolean(st.methodRiskCapacitiveOnly),
         outlierEnabled: Boolean(st.methodOutlierEnabled),
@@ -196,6 +205,7 @@ function registerExternalSelectionApi(ctx) {
         energinetTopN: Number(st.methodEnerginetTopN || 0),
         iecTopN: Number(st.methodIecTopN || 0),
         peakZTopN: Number(st.methodPeakZTopN || 0),
+        peakXTopN: Number(st.methodPeakXTopN || 0),
         riskTopN: Number(st.methodRiskTopN || 0),
         outlierTopN: Number(st.methodOutlierTopN || 0),
         energinetCandidateCount: Number(energinetVisible),
@@ -205,6 +215,9 @@ function registerExternalSelectionApi(ctx) {
         peakZCandidateCount: Number(peakZVisible),
         peakZAllCandidateCount: Number(peakZAllVisible),
         peakZCapacitiveCandidateCount: Number(peakZCapacitiveVisible),
+        peakXCandidateCount: Number(peakXVisible),
+        peakXAllCandidateCount: Number(peakXAllVisible),
+        peakXCapacitiveCandidateCount: Number(peakXCapacitiveVisible),
         riskCandidateCount: Number(riskVisible),
         riskAllCandidateCount: Number(riskAllVisible),
         riskCapacitiveCandidateCount: Number(riskCapacitiveVisible),
@@ -274,6 +287,20 @@ function registerExternalSelectionApi(ctx) {
       renderPanel();
       applyStateToPlots();
       notifyExternalSelectionStateChanged(nextCtx, "setPeakZEnabled.notify");
+      return true;
+    },
+    setPeakXEnabled: (flag) => {
+      const nextCtx = ensureContext();
+      if (!nextCtx) return false;
+      nextCtx.state.methodPeakXEnabled = Boolean(flag);
+      if (!nextCtx.state.methodPeakXEnabled) nextCtx.state.methodPeakXCapacitiveOnly = false;
+      if (!anyMethodEnabled(nextCtx.state)) nextCtx.state.methodExcludedCases = new Set();
+      recomputeSelectedCases(nextCtx);
+      nextCtx.state.importStatus = "";
+      bumpStateVersion(nextCtx.state);
+      renderPanel();
+      applyStateToPlots();
+      notifyExternalSelectionStateChanged(nextCtx, "setPeakXEnabled.notify");
       return true;
     },
     setRiskEnabled: (flag) => {
@@ -359,6 +386,18 @@ function registerExternalSelectionApi(ctx) {
       notifyExternalSelectionStateChanged(nextCtx, "setPeakZTopN.notify");
       return true;
     },
+    setPeakXTopN: (rawVal) => {
+      const nextCtx = ensureContext();
+      if (!nextCtx) return false;
+      nextCtx.state.methodPeakXTopN = normalizeTopN(rawVal);
+      recomputeSelectedCases(nextCtx);
+      nextCtx.state.importStatus = "";
+      bumpStateVersion(nextCtx.state);
+      renderPanel();
+      applyStateToPlots();
+      notifyExternalSelectionStateChanged(nextCtx, "setPeakXTopN.notify");
+      return true;
+    },
     setRiskTopN: (rawVal) => {
       const nextCtx = ensureContext();
       if (!nextCtx) return false;
@@ -409,6 +448,18 @@ function registerExternalSelectionApi(ctx) {
       renderPanel();
       applyStateToPlots();
       notifyExternalSelectionStateChanged(nextCtx, "setPeakZCapacitiveOnly.notify");
+      return true;
+    },
+    setPeakXCapacitiveOnly: (flag) => {
+      const nextCtx = ensureContext();
+      if (!nextCtx) return false;
+      nextCtx.state.methodPeakXCapacitiveOnly = nextCtx.state.methodPeakXEnabled ? flag === true : false;
+      recomputeSelectedCases(nextCtx);
+      nextCtx.state.importStatus = "";
+      bumpStateVersion(nextCtx.state);
+      renderPanel();
+      applyStateToPlots();
+      notifyExternalSelectionStateChanged(nextCtx, "setPeakXCapacitiveOnly.notify");
       return true;
     },
     setRiskCapacitiveOnly: (flag) => {
@@ -467,6 +518,8 @@ function registerExternalSelectionApi(ctx) {
       nextCtx.state.methodIecCapacitiveOnly = false;
       nextCtx.state.methodPeakZEnabled = false;
       nextCtx.state.methodPeakZCapacitiveOnly = false;
+      nextCtx.state.methodPeakXEnabled = false;
+      nextCtx.state.methodPeakXCapacitiveOnly = false;
       nextCtx.state.methodRiskEnabled = false;
       nextCtx.state.methodRiskCapacitiveOnly = false;
       nextCtx.state.methodOutlierEnabled = false;
