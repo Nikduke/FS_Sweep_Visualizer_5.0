@@ -29,7 +29,7 @@ Core design:
   - `fsCaseUiStateChanged` notifies sibling components after no-rerun state changes.
 - selected-location preselection payload is cached in session state by:
   - `preselection_payload:{data_id}:{seq_label}:{location}` (single active base payload, overwritten on base switch).
-  - payload sent to JS uses compact array/index format (`compact_v5`) to reduce rerun transfer size.
+  - payload sent to JS uses compact array/index format (`compact_v6`) to reduce rerun transfer size.
 - on chart-context switches (`base frequency`, `location`, `Positive/Zero` sequence), heavy sequence caches are evicted before rebuild to reduce peak-memory spikes on constrained hosts.
 - non-active sequence/location/chart cache entries are pruned proactively in the same data session.
 - uploaded workbooks are parsed once and cached as live `SweepSheet` objects in session state:
@@ -118,8 +118,8 @@ Rendered by `plotly_selection_bridge`:
 - method controls (in the scatter toolbar default-open `Selection methods` section):
   - `Energinet` toggle + editable `T2/T3/T4` + `Top N`
   - `RX hull` toggle + `Top N/h` + `Capacitive (N)`
-  - `Peak |Z|` toggle + `Top N/h` + `Capacitive (N)`
-  - `Peak X` toggle + `Top N/h` + `Capacitive (N)`
+  - `Peak |Z|` toggle + `Exact (N)` + `Band (N)` + `Top N/h` + `Capacitive (N)`
+  - `Peak X` toggle + `Exact (N)` + `Band (N)` + `Top N/h` + `Capacitive (N)`
   - `Risk` toggle + `Top N` + `Capacitive (N)`
   - `Outliers` toggle + `Top N` + `Capacitive (N)`
   - capacitive modes are computed inside each method from negative-X points (`X < 0`), not by post-filtering normal results
@@ -130,11 +130,11 @@ Rendered by `plotly_selection_bridge`:
 
 - `Energinet`: ranks cases where harmonic-band peak `|Z|` exceeds editable thresholds at 2nd/3rd/4th harmonic. Score is the maximum threshold ratio.
 - `RX hull`: for each harmonic from 2 to available range capped at 6, finds each case's harmonic-band peak `|Z|` point in R/X space and selects convex-hull vertices. `Top N/h` keeps the strongest hull cases inside each harmonic, then unions cases across harmonics.
-- `Peak |Z|`: ranks cases separately within each harmonic band over harmonics 2..6. `Top N/h` selects the top N cases per harmonic and uses the union of those cases.
-- `Peak X`: ranks cases separately within each harmonic band over harmonics 2..6 by strongest `abs(X)`. `Top N/h` selects the top N cases per harmonic and uses the union of those cases.
+- `Peak |Z|`: by default ranks cases at the nearest available sample to each exact harmonic center (`n * f_base`) over harmonics 2..6. Optional `Band` adds the previous harmonic-band peak `|Z|` ranking. `Top N/h` selects the top N cases per harmonic/source and uses the union of those cases.
+- `Peak X`: by default ranks cases at the nearest available sample to each exact harmonic center (`n * f_base`) over harmonics 2..6 by strongest `abs(X)`. Optional `Band` adds the previous harmonic-band strongest `abs(X)` ranking. `Top N/h` selects the top N cases per harmonic/source and uses the union of those cases.
 - `Risk`: ranks cases by weighted score from normalized peak `|Z|`, robust local prominence over cohort median/MAD, area above cohort median, damping proxy `log1p(|Z| / max(|R|, 1))`, and proximity to harmonic center.
 - `Outliers`: selects robust outliers by harmonic-band peak `|Z|` using MAD z-score threshold `3.5`; if MAD collapses, uses 95th percentile fallback.
-- For `RX hull`, `Peak |Z|`, `Peak X`, `Risk`, and `Outliers`, `Capacitive` mode recomputes the method using only candidate points with `X < 0`; for `Peak X`, capacitive mode ranks most negative `X` (`-X`). For `RX hull`, `Peak |Z|`, and `Peak X`, this is still Top N per harmonic.
+- For `RX hull`, `Peak |Z|`, `Peak X`, `Risk`, and `Outliers`, `Capacitive` mode recomputes the method using only candidate points with `X < 0`; for `Peak X`, capacitive mode ranks most negative `X` (`-X`). For `Peak |Z|` and `Peak X`, `Capacitive` applies inside each enabled source (`Exact` and/or `Band`), not as a post-filter.
 
 ## Visibility And Legend Rules
 

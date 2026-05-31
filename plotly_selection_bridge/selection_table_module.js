@@ -136,9 +136,21 @@ function registerExternalSelectionApi(ctx) {
       const peakZRawSet = st.methodPeakZCasesRaw instanceof Set ? st.methodPeakZCasesRaw : new Set();
       const peakZAllRawSet = st.methodPeakZCasesRawAll instanceof Set ? st.methodPeakZCasesRawAll : peakZRawSet;
       const peakZCapacitiveRawSet = st.methodPeakZCasesRawCapacitive instanceof Set ? st.methodPeakZCasesRawCapacitive : peakZRawSet;
+      const peakZExactRawSet = st.methodPeakZCapacitiveOnly
+        ? (st.methodPeakZExactCasesRawCapacitive instanceof Set ? st.methodPeakZExactCasesRawCapacitive : new Set())
+        : (st.methodPeakZExactCasesRawAll instanceof Set ? st.methodPeakZExactCasesRawAll : new Set());
+      const peakZBandRawSet = st.methodPeakZCapacitiveOnly
+        ? (st.methodPeakZBandCasesRawCapacitive instanceof Set ? st.methodPeakZBandCasesRawCapacitive : new Set())
+        : (st.methodPeakZBandCasesRawAll instanceof Set ? st.methodPeakZBandCasesRawAll : new Set());
       const peakXRawSet = st.methodPeakXCasesRaw instanceof Set ? st.methodPeakXCasesRaw : new Set();
       const peakXAllRawSet = st.methodPeakXCasesRawAll instanceof Set ? st.methodPeakXCasesRawAll : peakXRawSet;
       const peakXCapacitiveRawSet = st.methodPeakXCasesRawCapacitive instanceof Set ? st.methodPeakXCasesRawCapacitive : peakXRawSet;
+      const peakXExactRawSet = st.methodPeakXCapacitiveOnly
+        ? (st.methodPeakXExactCasesRawCapacitive instanceof Set ? st.methodPeakXExactCasesRawCapacitive : new Set())
+        : (st.methodPeakXExactCasesRawAll instanceof Set ? st.methodPeakXExactCasesRawAll : new Set());
+      const peakXBandRawSet = st.methodPeakXCapacitiveOnly
+        ? (st.methodPeakXBandCasesRawCapacitive instanceof Set ? st.methodPeakXBandCasesRawCapacitive : new Set())
+        : (st.methodPeakXBandCasesRawAll instanceof Set ? st.methodPeakXBandCasesRawAll : new Set());
       const riskRawSet = st.methodRiskCasesRaw instanceof Set ? st.methodRiskCasesRaw : new Set();
       const riskAllRawSet = st.methodRiskCasesRawAll instanceof Set ? st.methodRiskCasesRawAll : riskRawSet;
       const riskCapacitiveRawSet = st.methodRiskCasesRawCapacitive instanceof Set ? st.methodRiskCasesRawCapacitive : riskRawSet;
@@ -162,9 +174,13 @@ function registerExternalSelectionApi(ctx) {
       const peakZVisible = countVisible(peakZRawSet);
       const peakZAllVisible = countVisible(peakZAllRawSet);
       const peakZCapacitiveVisible = countVisible(peakZCapacitiveRawSet);
+      const peakZExactVisible = countVisible(peakZExactRawSet);
+      const peakZBandVisible = countVisible(peakZBandRawSet);
       const peakXVisible = countVisible(peakXRawSet);
       const peakXAllVisible = countVisible(peakXAllRawSet);
       const peakXCapacitiveVisible = countVisible(peakXCapacitiveRawSet);
+      const peakXExactVisible = countVisible(peakXExactRawSet);
+      const peakXBandVisible = countVisible(peakXBandRawSet);
       const riskVisible = countVisible(riskRawSet);
       const riskAllVisible = countVisible(riskAllRawSet);
       const riskCapacitiveVisible = countVisible(riskCapacitiveRawSet);
@@ -193,8 +209,12 @@ function registerExternalSelectionApi(ctx) {
         iecCapacitiveOnly: Boolean(st.methodIecCapacitiveOnly),
         peakZEnabled: Boolean(st.methodPeakZEnabled),
         peakZCapacitiveOnly: Boolean(st.methodPeakZCapacitiveOnly),
+        peakZExactEnabled: st.methodPeakZExactEnabled !== false,
+        peakZBandEnabled: Boolean(st.methodPeakZBandEnabled),
         peakXEnabled: Boolean(st.methodPeakXEnabled),
         peakXCapacitiveOnly: Boolean(st.methodPeakXCapacitiveOnly),
+        peakXExactEnabled: st.methodPeakXExactEnabled !== false,
+        peakXBandEnabled: Boolean(st.methodPeakXBandEnabled),
         riskEnabled: Boolean(st.methodRiskEnabled),
         riskCapacitiveOnly: Boolean(st.methodRiskCapacitiveOnly),
         outlierEnabled: Boolean(st.methodOutlierEnabled),
@@ -215,9 +235,13 @@ function registerExternalSelectionApi(ctx) {
         peakZCandidateCount: Number(peakZVisible),
         peakZAllCandidateCount: Number(peakZAllVisible),
         peakZCapacitiveCandidateCount: Number(peakZCapacitiveVisible),
+        peakZExactCandidateCount: Number(peakZExactVisible),
+        peakZBandCandidateCount: Number(peakZBandVisible),
         peakXCandidateCount: Number(peakXVisible),
         peakXAllCandidateCount: Number(peakXAllVisible),
         peakXCapacitiveCandidateCount: Number(peakXCapacitiveVisible),
+        peakXExactCandidateCount: Number(peakXExactVisible),
+        peakXBandCandidateCount: Number(peakXBandVisible),
         riskCandidateCount: Number(riskVisible),
         riskAllCandidateCount: Number(riskAllVisible),
         riskCapacitiveCandidateCount: Number(riskCapacitiveVisible),
@@ -386,6 +410,30 @@ function registerExternalSelectionApi(ctx) {
       notifyExternalSelectionStateChanged(nextCtx, "setPeakZTopN.notify");
       return true;
     },
+    setPeakZExactEnabled: (flag) => {
+      const nextCtx = ensureContext();
+      if (!nextCtx) return false;
+      nextCtx.state.methodPeakZExactEnabled = flag === true;
+      recomputeSelectedCases(nextCtx);
+      nextCtx.state.importStatus = "";
+      bumpStateVersion(nextCtx.state);
+      renderPanel();
+      applyStateToPlots();
+      notifyExternalSelectionStateChanged(nextCtx, "setPeakZExactEnabled.notify");
+      return true;
+    },
+    setPeakZBandEnabled: (flag) => {
+      const nextCtx = ensureContext();
+      if (!nextCtx) return false;
+      nextCtx.state.methodPeakZBandEnabled = flag === true;
+      recomputeSelectedCases(nextCtx);
+      nextCtx.state.importStatus = "";
+      bumpStateVersion(nextCtx.state);
+      renderPanel();
+      applyStateToPlots();
+      notifyExternalSelectionStateChanged(nextCtx, "setPeakZBandEnabled.notify");
+      return true;
+    },
     setPeakXTopN: (rawVal) => {
       const nextCtx = ensureContext();
       if (!nextCtx) return false;
@@ -396,6 +444,30 @@ function registerExternalSelectionApi(ctx) {
       renderPanel();
       applyStateToPlots();
       notifyExternalSelectionStateChanged(nextCtx, "setPeakXTopN.notify");
+      return true;
+    },
+    setPeakXExactEnabled: (flag) => {
+      const nextCtx = ensureContext();
+      if (!nextCtx) return false;
+      nextCtx.state.methodPeakXExactEnabled = flag === true;
+      recomputeSelectedCases(nextCtx);
+      nextCtx.state.importStatus = "";
+      bumpStateVersion(nextCtx.state);
+      renderPanel();
+      applyStateToPlots();
+      notifyExternalSelectionStateChanged(nextCtx, "setPeakXExactEnabled.notify");
+      return true;
+    },
+    setPeakXBandEnabled: (flag) => {
+      const nextCtx = ensureContext();
+      if (!nextCtx) return false;
+      nextCtx.state.methodPeakXBandEnabled = flag === true;
+      recomputeSelectedCases(nextCtx);
+      nextCtx.state.importStatus = "";
+      bumpStateVersion(nextCtx.state);
+      renderPanel();
+      applyStateToPlots();
+      notifyExternalSelectionStateChanged(nextCtx, "setPeakXBandEnabled.notify");
       return true;
     },
     setRiskTopN: (rawVal) => {
@@ -518,8 +590,12 @@ function registerExternalSelectionApi(ctx) {
       nextCtx.state.methodIecCapacitiveOnly = false;
       nextCtx.state.methodPeakZEnabled = false;
       nextCtx.state.methodPeakZCapacitiveOnly = false;
+      nextCtx.state.methodPeakZExactEnabled = true;
+      nextCtx.state.methodPeakZBandEnabled = false;
       nextCtx.state.methodPeakXEnabled = false;
       nextCtx.state.methodPeakXCapacitiveOnly = false;
+      nextCtx.state.methodPeakXExactEnabled = true;
+      nextCtx.state.methodPeakXBandEnabled = false;
       nextCtx.state.methodRiskEnabled = false;
       nextCtx.state.methodRiskCapacitiveOnly = false;
       nextCtx.state.methodOutlierEnabled = false;

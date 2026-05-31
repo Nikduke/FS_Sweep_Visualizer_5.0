@@ -139,6 +139,20 @@ def _band_indices(freq: np.ndarray, center_hz: float, half_width_hz: float) -> n
     return np.where((freq >= lo) & (freq <= hi))[0]
 
 
+def _nearest_index(freq: np.ndarray, target_hz: float) -> Optional[int]:
+    freq_arr = np.asarray(freq, dtype=float)
+    if freq_arr.size == 0:
+        return None
+    pos = int(np.searchsorted(freq_arr, float(target_hz), side="left"))
+    if pos <= 0:
+        return 0
+    if pos >= freq_arr.size:
+        return int(freq_arr.size - 1)
+    left = float(freq_arr[pos - 1])
+    right = float(freq_arr[pos])
+    return int(pos - 1 if abs(float(target_hz) - left) <= abs(right - float(target_hz)) else pos)
+
+
 def _max_mag_index_in_band(
     r_arr: np.ndarray,
     x_arr: np.ndarray,
@@ -445,6 +459,48 @@ def _compute_peak_z_ranking(
     return _ranked_rows_payload(rows, top_n_scope="per_harmonic")
 
 
+def _compute_exact_peak_z_ranking(
+    freq: np.ndarray,
+    r_map: Dict[str, np.ndarray],
+    x_map: Dict[str, np.ndarray],
+    cases: Sequence[str],
+    f1_hz: float,
+    n_values: Sequence[int],
+    capacitive_only: bool = False,
+) -> Dict[str, object]:
+    case_set = {str(c) for c in cases}
+    rows: List[Dict[str, object]] = []
+    freq_arr = np.asarray(freq, dtype=float)
+    if freq_arr.size == 0:
+        return _ranked_rows_payload(rows, top_n_scope="per_harmonic")
+    freq_min = float(np.nanmin(freq_arr))
+    freq_max = float(np.nanmax(freq_arr))
+    for n in sorted({int(v) for v in n_values if int(v) >= 1}):
+        target_hz = float(n) * float(f1_hz)
+        if not np.isfinite(target_hz) or target_hz < freq_min or target_hz > freq_max:
+            continue
+        idx = _nearest_index(freq_arr, target_hz)
+        if idx is None:
+            continue
+        for case in cases:
+            cid = str(case)
+            if cid not in case_set or cid not in r_map or cid not in x_map:
+                continue
+            r_arr = np.asarray(r_map[cid], dtype=float)
+            x_arr = np.asarray(x_map[cid], dtype=float)
+            if idx >= r_arr.size or idx >= x_arr.size:
+                continue
+            r_val = float(r_arr[idx])
+            x_val = float(x_arr[idx])
+            if not np.isfinite(r_val) or not np.isfinite(x_val):
+                continue
+            if bool(capacitive_only) and x_val >= 0.0:
+                continue
+            z = float(np.sqrt(r_val ** 2 + x_val ** 2))
+            rows.append({"case_id": cid, "score": z, "zmax": z, "harmonic": int(n)})
+    return _ranked_rows_payload(rows, top_n_scope="per_harmonic")
+
+
 def _compute_peak_x_ranking(
     x_map: Dict[str, np.ndarray],
     cases: Sequence[str],
@@ -485,6 +541,48 @@ def _compute_peak_x_ranking(
                     "harmonic": int(n),
                 }
             )
+    return _ranked_rows_payload(rows, top_n_scope="per_harmonic")
+
+
+def _compute_exact_peak_x_ranking(
+    freq: np.ndarray,
+    x_map: Dict[str, np.ndarray],
+    cases: Sequence[str],
+    f1_hz: float,
+    n_values: Sequence[int],
+    capacitive_only: bool = False,
+) -> Dict[str, object]:
+    case_set = {str(c) for c in cases}
+    rows: List[Dict[str, object]] = []
+    freq_arr = np.asarray(freq, dtype=float)
+    if freq_arr.size == 0:
+        return _ranked_rows_payload(rows, top_n_scope="per_harmonic")
+    freq_min = float(np.nanmin(freq_arr))
+    freq_max = float(np.nanmax(freq_arr))
+    for n in sorted({int(v) for v in n_values if int(v) >= 1}):
+        target_hz = float(n) * float(f1_hz)
+        if not np.isfinite(target_hz) or target_hz < freq_min or target_hz > freq_max:
+            continue
+        idx = _nearest_index(freq_arr, target_hz)
+        if idx is None:
+            continue
+        for case in cases:
+            cid = str(case)
+            if cid not in case_set or cid not in x_map:
+                continue
+            x_arr = np.asarray(x_map[cid], dtype=float)
+            if idx >= x_arr.size:
+                continue
+            x_val = float(x_arr[idx])
+            if not np.isfinite(x_val):
+                continue
+            if bool(capacitive_only):
+                if x_val >= 0.0:
+                    continue
+                score = -x_val
+            else:
+                score = abs(x_val)
+            rows.append({"case_id": cid, "score": float(score), "zmax": float(score), "harmonic": int(n)})
     return _ranked_rows_payload(rows, top_n_scope="per_harmonic")
 
 
@@ -677,13 +775,14 @@ def build_preselection_payload(
         freq_max = float(np.nanmax(freq))
         n_env = int(min(6, np.floor(freq_max / float(f1_val)))) if np.isfinite(freq_max) and f1_val > 0 else 0
         max_n = int(max(4, n_env))
+        harmonic_range = range(2, max_n + 1)
         band_indices, harmonic_points = _compute_harmonic_max_points(
             freq,
             r_map,
             x_map,
             chosen_cases,
             f1_val,
-            range(2, max_n + 1),
+            harmonic_range,
         )
         _band_indices_cap, harmonic_points_capacitive = _compute_harmonic_max_points(
             freq,
@@ -691,7 +790,7 @@ def build_preselection_payload(
             x_map,
             chosen_cases,
             f1_val,
-            range(2, max_n + 1),
+            harmonic_range,
             capacitive_only=True,
         )
         energinet = _compute_energinet_metrics(
@@ -721,10 +820,22 @@ def build_preselection_payload(
             band_indices=band_indices,
             harmonic_points=harmonic_points_capacitive,
         )
-        peak_z_all = _compute_peak_z_ranking(harmonic_points, chosen_cases)
-        peak_z_capacitive = _compute_peak_z_ranking(harmonic_points_capacitive, chosen_cases)
-        peak_x_all = _compute_peak_x_ranking(x_map, chosen_cases, band_indices, capacitive_only=False)
-        peak_x_capacitive = _compute_peak_x_ranking(x_map, chosen_cases, band_indices, capacitive_only=True)
+        peak_z_exact_all = _compute_exact_peak_z_ranking(
+            freq, r_map, x_map, chosen_cases, f1_val, harmonic_range, capacitive_only=False
+        )
+        peak_z_exact_capacitive = _compute_exact_peak_z_ranking(
+            freq, r_map, x_map, chosen_cases, f1_val, harmonic_range, capacitive_only=True
+        )
+        peak_z_band_all = _compute_peak_z_ranking(harmonic_points, chosen_cases)
+        peak_z_band_capacitive = _compute_peak_z_ranking(harmonic_points_capacitive, chosen_cases)
+        peak_x_exact_all = _compute_exact_peak_x_ranking(
+            freq, x_map, chosen_cases, f1_val, harmonic_range, capacitive_only=False
+        )
+        peak_x_exact_capacitive = _compute_exact_peak_x_ranking(
+            freq, x_map, chosen_cases, f1_val, harmonic_range, capacitive_only=True
+        )
+        peak_x_band_all = _compute_peak_x_ranking(x_map, chosen_cases, band_indices, capacitive_only=False)
+        peak_x_band_capacitive = _compute_peak_x_ranking(x_map, chosen_cases, band_indices, capacitive_only=True)
         risk_all = _compute_risk_ranking(harmonic_points, chosen_cases, f1_val)
         risk_capacitive = _compute_risk_ranking(harmonic_points_capacitive, chosen_cases, f1_val)
         outlier_all = _compute_outlier_ranking(harmonic_points, chosen_cases)
@@ -749,12 +860,20 @@ def build_preselection_payload(
                 },
             },
             "peak_z_modes": {
-                "all": dict(peak_z_all),
-                "capacitive": dict(peak_z_capacitive),
+                "all": dict(peak_z_exact_all),
+                "capacitive": dict(peak_z_exact_capacitive),
+            },
+            "peak_z_band_modes": {
+                "all": dict(peak_z_band_all),
+                "capacitive": dict(peak_z_band_capacitive),
             },
             "peak_x_modes": {
-                "all": dict(peak_x_all),
-                "capacitive": dict(peak_x_capacitive),
+                "all": dict(peak_x_exact_all),
+                "capacitive": dict(peak_x_exact_capacitive),
+            },
+            "peak_x_band_modes": {
+                "all": dict(peak_x_band_all),
+                "capacitive": dict(peak_x_band_capacitive),
             },
             "risk_modes": {
                 "all": dict(risk_all),

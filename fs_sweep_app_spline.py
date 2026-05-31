@@ -148,7 +148,7 @@ SELECTION_MODE_TICK_FONT_SIZE_PX = 12
 SELECTION_MODE_LINE_MARGIN_BOTTOM_PX = 72
 
 _plotly_selection_bridge = components.declare_component(
-    "plotly_selection_bridge_v17",
+    "plotly_selection_bridge_v18",
     path=str(os.path.join(os.path.dirname(__file__), "plotly_selection_bridge")),
 )
 
@@ -158,7 +158,7 @@ _plotly_export_button = components.declare_component(
 )
 
 _plotly_rx_toolbar = components.declare_component(
-    "plotly_rx_toolbar_v3",
+    "plotly_rx_toolbar_v4",
     path=str(os.path.join(os.path.dirname(__file__), "plotly_rx_toolbar")),
 )
 
@@ -547,11 +547,11 @@ def _compact_preselection_payload(payload: Dict[str, object]) -> Dict[str, objec
             "error": "Invalid preselection payload shape.",
             "limitation_note": "",
             "cases_count": 0,
-            "format": "compact_v5",
+            "format": "compact_v6",
             "by_f1": {},
         }
 
-    if str(payload.get("format", "")) == "compact_v5":
+    if str(payload.get("format", "")) == "compact_v6":
         return dict(payload)
 
     out: Dict[str, object] = {
@@ -559,7 +559,7 @@ def _compact_preselection_payload(payload: Dict[str, object]) -> Dict[str, objec
         "error": str(payload.get("error", "")),
         "limitation_note": str(payload.get("limitation_note", "")),
         "cases_count": int(_to_nonnegative_int(payload.get("cases_count", 0))),
-        "format": "compact_v5",
+        "format": "compact_v6",
         "by_f1": {},
     }
 
@@ -581,7 +581,14 @@ def _compact_preselection_payload(payload: Dict[str, object]) -> Dict[str, objec
             all_node = all_src if isinstance(all_src, dict) else base_node_raw
             capacitive_node = capacitive_src if isinstance(capacitive_src, dict) else all_node
             ranked_sources: List[Dict[str, object]] = []
-            for modes_name in ("peak_z_modes", "peak_x_modes", "risk_modes", "outlier_modes"):
+            for modes_name in (
+                "peak_z_modes",
+                "peak_z_band_modes",
+                "peak_x_modes",
+                "peak_x_band_modes",
+                "risk_modes",
+                "outlier_modes",
+            ):
                 modes_raw = base_node_raw.get(modes_name)
                 modes = modes_raw if isinstance(modes_raw, dict) else {}
                 for ranked_node_raw in (modes.get("all"), modes.get("capacitive")):
@@ -605,7 +612,14 @@ def _compact_preselection_payload(payload: Dict[str, object]) -> Dict[str, objec
             case_ids = sorted(case_ids)
             case_index = {cid: i for i, cid in enumerate(case_ids)}
             ranked_modes: Dict[str, Dict[str, object]] = {}
-            for modes_name in ("peak_z_modes", "peak_x_modes", "risk_modes", "outlier_modes"):
+            for modes_name in (
+                "peak_z_modes",
+                "peak_z_band_modes",
+                "peak_x_modes",
+                "peak_x_band_modes",
+                "risk_modes",
+                "outlier_modes",
+            ):
                 modes_raw = base_node_raw.get(modes_name)
                 modes = modes_raw if isinstance(modes_raw, dict) else {}
                 all_mode = modes.get("all")
@@ -645,7 +659,7 @@ def _compact_preselection_payload(payload: Dict[str, object]) -> Dict[str, objec
             }
 
             by_f1_out[str(f1_key)] = {
-                "format": "compact_v5",
+                "format": "compact_v6",
                 "case_ids": list(case_ids),
                 "energinet": {
                     "z2": z2,
@@ -661,7 +675,9 @@ def _compact_preselection_payload(payload: Dict[str, object]) -> Dict[str, objec
                     "capacitive": _compact_iec_mode_payload(capacitive_node, case_index),
                 },
                 "peak_z_modes": ranked_modes["peak_z_modes"],
+                "peak_z_band_modes": ranked_modes["peak_z_band_modes"],
                 "peak_x_modes": ranked_modes["peak_x_modes"],
+                "peak_x_band_modes": ranked_modes["peak_x_band_modes"],
                 "risk_modes": ranked_modes["risk_modes"],
                 "outlier_modes": ranked_modes["outlier_modes"],
             }
@@ -2062,7 +2078,7 @@ def _prepare_render_context(default_path: str) -> AppRenderContext:
     raw_preselection_payload = st.session_state.get(preselection_cache_key)
     payload_by_f1 = raw_preselection_payload.get("by_f1") if isinstance(raw_preselection_payload, dict) else {}
     cache_has_requested_base = isinstance(payload_by_f1, dict) and requested_base_key in payload_by_f1
-    cache_format_ok = isinstance(raw_preselection_payload, dict) and str(raw_preselection_payload.get("format", "")) == "compact_v5"
+    cache_format_ok = isinstance(raw_preselection_payload, dict) and str(raw_preselection_payload.get("format", "")) == "compact_v6"
     if not isinstance(raw_preselection_payload, dict) or not cache_has_requested_base or not cache_format_ok:
         build_location_caption = selected_location if selected_location else "<empty>"
         with st.spinner(f"Building plots for {build_location_caption} / {int(round(f_base))} Hz..."):

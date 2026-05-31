@@ -207,10 +207,18 @@ function syncSelectionControls(stateKey, force) {
     const cbIecCapacitive = document.getElementById("rx-iec-capacitive");
     const iecCapacitiveLbl = document.getElementById("rx-iec-capacitive-label");
     const cbPeakZ = document.getElementById("rx-method-peakz");
+    const cbPeakZExact = document.getElementById("rx-peakz-exact");
+    const cbPeakZBand = document.getElementById("rx-peakz-band");
     const cbPeakZCapacitive = document.getElementById("rx-peakz-capacitive");
+    const peakZExactLbl = document.getElementById("rx-peakz-exact-label");
+    const peakZBandLbl = document.getElementById("rx-peakz-band-label");
     const peakZCapacitiveLbl = document.getElementById("rx-peakz-capacitive-label");
     const cbPeakX = document.getElementById("rx-method-peakx");
+    const cbPeakXExact = document.getElementById("rx-peakx-exact");
+    const cbPeakXBand = document.getElementById("rx-peakx-band");
     const cbPeakXCapacitive = document.getElementById("rx-peakx-capacitive");
+    const peakXExactLbl = document.getElementById("rx-peakx-exact-label");
+    const peakXBandLbl = document.getElementById("rx-peakx-band-label");
     const peakXCapacitiveLbl = document.getElementById("rx-peakx-capacitive-label");
     const cbRisk = document.getElementById("rx-method-risk");
     const cbRiskCapacitive = document.getElementById("rx-risk-capacitive");
@@ -275,6 +283,16 @@ function syncSelectionControls(stateKey, force) {
       cbPeakZCapacitive.disabled = !on;
       cbPeakZCapacitive.checked = on && Boolean(st.peakZCapacitiveOnly);
     }
+    if (cbPeakZExact) {
+      cbPeakZExact.disabled = !preselectionAvailable;
+      cbPeakZExact.checked = preselectionAvailable && st.peakZExactEnabled !== false;
+    }
+    if (cbPeakZBand) {
+      cbPeakZBand.disabled = !preselectionAvailable;
+      cbPeakZBand.checked = preselectionAvailable && Boolean(st.peakZBandEnabled);
+    }
+    if (peakZExactLbl) peakZExactLbl.textContent = `Exact (${Number(st.peakZExactCandidateCount || 0)})`;
+    if (peakZBandLbl) peakZBandLbl.textContent = `Band (${Number(st.peakZBandCandidateCount || 0)})`;
     if (peakZCapacitiveLbl) {
       peakZCapacitiveLbl.textContent = `Capacitive (${Number(st.peakZCapacitiveCandidateCount || 0)})`;
     }
@@ -289,6 +307,16 @@ function syncSelectionControls(stateKey, force) {
       cbPeakXCapacitive.disabled = !on;
       cbPeakXCapacitive.checked = on && Boolean(st.peakXCapacitiveOnly);
     }
+    if (cbPeakXExact) {
+      cbPeakXExact.disabled = !preselectionAvailable;
+      cbPeakXExact.checked = preselectionAvailable && st.peakXExactEnabled !== false;
+    }
+    if (cbPeakXBand) {
+      cbPeakXBand.disabled = !preselectionAvailable;
+      cbPeakXBand.checked = preselectionAvailable && Boolean(st.peakXBandEnabled);
+    }
+    if (peakXExactLbl) peakXExactLbl.textContent = `Exact (${Number(st.peakXExactCandidateCount || 0)})`;
+    if (peakXBandLbl) peakXBandLbl.textContent = `Band (${Number(st.peakXBandCandidateCount || 0)})`;
     if (peakXCapacitiveLbl) {
       peakXCapacitiveLbl.textContent = `Capacitive (${Number(st.peakXCapacitiveCandidateCount || 0)})`;
     }
@@ -737,7 +765,15 @@ function render() {
             <label class="rx-method-check">
               <input id="rx-method-peakz" type="checkbox" />
               <span id="rx-method-peakz-label">Peak |Z|</span>
-              <span class="rx-help" title="Peak screen: ranks highest |Z| inside each harmonic band from 2nd to 6th. Top N/h selects Top N per harmonic, then unions cases. Capacitive uses X < 0 points only." aria-label="Peak Z method help">?</span>
+              <span class="rx-help" title="Peak impedance screen: Exact ranks |Z| at the nearest available frequency to each harmonic center from 2nd to 6th. Band adds the strongest |Z| inside each harmonic band. Top N/h applies per harmonic/source, then unions cases. Capacitive uses X < 0 points only." aria-label="Peak Z method help">?</span>
+            </label>
+            <label class="rx-method-check">
+              <input id="rx-peakz-exact" type="checkbox" />
+              <span id="rx-peakz-exact-label">Exact (0)</span>
+            </label>
+            <label class="rx-method-check">
+              <input id="rx-peakz-band" type="checkbox" />
+              <span id="rx-peakz-band-label">Band (0)</span>
             </label>
             <label class="rx-th rx-input-short">Top N/h <input id="rx-peakz-topn" type="number" min="0" step="1" value="10" /></label>
             <label class="rx-method-check">
@@ -750,7 +786,15 @@ function render() {
             <label class="rx-method-check">
               <input id="rx-method-peakx" type="checkbox" />
               <span id="rx-method-peakx-label">Peak X</span>
-              <span class="rx-help" title="Reactance peak screen: ranks strongest |X| inside each harmonic band from 2nd to 6th. Top N/h selects Top N per harmonic, then unions cases. Capacitive uses X < 0 points only and ranks most negative X." aria-label="Peak X method help">?</span>
+              <span class="rx-help" title="Reactance peak screen: Exact ranks strongest |X| at the nearest available frequency to each harmonic center from 2nd to 6th. Band adds strongest |X| inside each harmonic band. Top N/h applies per harmonic/source, then unions cases. Capacitive ranks most negative X with X < 0 points only." aria-label="Peak X method help">?</span>
+            </label>
+            <label class="rx-method-check">
+              <input id="rx-peakx-exact" type="checkbox" />
+              <span id="rx-peakx-exact-label">Exact (0)</span>
+            </label>
+            <label class="rx-method-check">
+              <input id="rx-peakx-band" type="checkbox" />
+              <span id="rx-peakx-band-label">Band (0)</span>
             </label>
             <label class="rx-th rx-input-short">Top N/h <input id="rx-peakx-topn" type="number" min="0" step="1" value="10" /></label>
             <label class="rx-method-check">
@@ -811,8 +855,12 @@ function render() {
   const iecCb = document.getElementById("rx-method-iec");
   const iecCapacitiveCb = document.getElementById("rx-iec-capacitive");
   const peakZCb = document.getElementById("rx-method-peakz");
+  const peakZExactCb = document.getElementById("rx-peakz-exact");
+  const peakZBandCb = document.getElementById("rx-peakz-band");
   const peakZCapacitiveCb = document.getElementById("rx-peakz-capacitive");
   const peakXCb = document.getElementById("rx-method-peakx");
+  const peakXExactCb = document.getElementById("rx-peakx-exact");
+  const peakXBandCb = document.getElementById("rx-peakx-band");
   const peakXCapacitiveCb = document.getElementById("rx-peakx-capacitive");
   const riskCb = document.getElementById("rx-method-risk");
   const riskCapacitiveCb = document.getElementById("rx-risk-capacitive");
@@ -925,6 +973,16 @@ function render() {
       pushMethodEnabled(stateKey, "setPeakZEnabled", Boolean(peakZCb.checked));
     });
   }
+  if (peakZExactCb) {
+    peakZExactCb.addEventListener("change", () => {
+      pushMethodEnabled(stateKey, "setPeakZExactEnabled", Boolean(peakZExactCb.checked));
+    });
+  }
+  if (peakZBandCb) {
+    peakZBandCb.addEventListener("change", () => {
+      pushMethodEnabled(stateKey, "setPeakZBandEnabled", Boolean(peakZBandCb.checked));
+    });
+  }
   if (peakZCapacitiveCb) {
     peakZCapacitiveCb.addEventListener("change", () => {
       pushRankedCapacitiveMode(stateKey, "setPeakZCapacitiveOnly", Boolean(peakZCapacitiveCb.checked));
@@ -933,6 +991,16 @@ function render() {
   if (peakXCb) {
     peakXCb.addEventListener("change", () => {
       pushMethodEnabled(stateKey, "setPeakXEnabled", Boolean(peakXCb.checked));
+    });
+  }
+  if (peakXExactCb) {
+    peakXExactCb.addEventListener("change", () => {
+      pushMethodEnabled(stateKey, "setPeakXExactEnabled", Boolean(peakXExactCb.checked));
+    });
+  }
+  if (peakXBandCb) {
+    peakXBandCb.addEventListener("change", () => {
+      pushMethodEnabled(stateKey, "setPeakXBandEnabled", Boolean(peakXBandCb.checked));
     });
   }
   if (peakXCapacitiveCb) {

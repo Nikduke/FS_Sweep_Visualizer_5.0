@@ -3,7 +3,12 @@ import unittest
 import numpy as np
 
 from fs_sweep_app_spline import SweepSheet, _compact_preselection_payload
-from preselection_shortlist import build_preselection_payload_safe, _compute_peak_x_ranking, _ranked_rows_payload
+from preselection_shortlist import (
+    build_preselection_payload_safe,
+    _compute_exact_peak_x_ranking,
+    _compute_peak_x_ranking,
+    _ranked_rows_payload,
+)
 
 
 class RankedPayloadTests(unittest.TestCase):
@@ -63,7 +68,9 @@ class RankedPayloadTests(unittest.TestCase):
                             },
                         },
                         "peak_z_modes": {"all": ranked, "capacitive": ranked},
+                        "peak_z_band_modes": {"all": ranked, "capacitive": ranked},
                         "peak_x_modes": {"all": ranked, "capacitive": ranked},
+                        "peak_x_band_modes": {"all": ranked, "capacitive": ranked},
                         "risk_modes": {"all": ranked, "capacitive": ranked},
                         "outlier_modes": {"all": ranked, "capacitive": ranked},
                     }
@@ -72,7 +79,7 @@ class RankedPayloadTests(unittest.TestCase):
         )
 
         node = compact["by_f1"]["50"]
-        self.assertEqual(compact["format"], "compact_v5")
+        self.assertEqual(compact["format"], "compact_v6")
         self.assertEqual(node["case_ids"], ["B"])
         self.assertEqual(node["iec_modes"]["all"]["case_idx"], [0])
         self.assertEqual(node["iec_modes"]["all"]["vertex_orders"], [[2, 4]])
@@ -80,6 +87,8 @@ class RankedPayloadTests(unittest.TestCase):
         self.assertEqual(node["iec_modes"]["all"]["top_n_scope"], "per_harmonic")
         self.assertEqual(node["risk_modes"]["all"]["case_idx"], [0])
         self.assertEqual(node["risk_modes"]["all"]["scores"], [4.0])
+        self.assertEqual(node["peak_z_band_modes"]["all"]["case_idx"], [0])
+        self.assertEqual(node["peak_x_band_modes"]["all"]["case_idx"], [0])
 
     def test_peak_x_ranking_uses_harmonic_bands_and_capacitive_mode(self):
         x_map = {
@@ -97,6 +106,30 @@ class RankedPayloadTests(unittest.TestCase):
         self.assertEqual(full["scores"], [30.0, 20.0, 4.0])
         self.assertEqual(cap["case_ids"], ["B", "A"])
         self.assertEqual(cap["scores"], [30.0, 20.0])
+
+    def test_exact_peak_x_ranking_uses_harmonic_center_points(self):
+        freq = np.asarray([60.0, 120.0, 180.0, 240.0, 300.0, 360.0])
+        x_map = {
+            "A": np.asarray([1.0, -20.0, -100.0, 1.0, 1.0, 1.0]),
+            "B": np.asarray([1.0, -90.0, -80.0, 1.0, 1.0, 1.0]),
+            "C": np.asarray([1.0, 10.0, 60.0, 1.0, 1.0, 1.0]),
+        }
+
+        full = _compute_exact_peak_x_ranking(freq, x_map, ["A", "B", "C"], 60.0, range(2, 7))
+        cap = _compute_exact_peak_x_ranking(
+            freq,
+            x_map,
+            ["A", "B", "C"],
+            60.0,
+            range(2, 7),
+            capacitive_only=True,
+        )
+
+        self.assertEqual(full["top_n_scope"], "per_harmonic")
+        self.assertEqual(full["case_ids"][:3], ["B", "A", "C"])
+        self.assertEqual(full["harmonic"][:3], [2, 2, 2])
+        self.assertEqual(cap["case_ids"][:4], ["B", "A", "A", "B"])
+        self.assertEqual(cap["harmonic"][:4], [2, 2, 3, 3])
 
     def test_build_payload_includes_compact_peak_x_candidates(self):
         freq = np.arange(0.0, 361.0, 1.0)
@@ -129,6 +162,10 @@ class RankedPayloadTests(unittest.TestCase):
 
         self.assertGreater(len(node["peak_x_modes"]["all"]["case_idx"]), 0)
         self.assertGreater(len(node["peak_x_modes"]["capacitive"]["case_idx"]), 0)
+        self.assertGreater(len(node["peak_x_band_modes"]["all"]["case_idx"]), 0)
+        self.assertGreater(len(node["peak_x_band_modes"]["capacitive"]["case_idx"]), 0)
+        self.assertGreater(len(node["peak_z_modes"]["all"]["case_idx"]), 0)
+        self.assertGreater(len(node["peak_z_band_modes"]["all"]["case_idx"]), 0)
 
 
 if __name__ == "__main__":

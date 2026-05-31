@@ -204,8 +204,12 @@ function createDefaultState(partOptions, colorByOptions, colorByDefault, showOnl
     methodIecCapacitiveOnly: false,
     methodPeakZEnabled: false,
     methodPeakZCapacitiveOnly: false,
+    methodPeakZExactEnabled: true,
+    methodPeakZBandEnabled: false,
     methodPeakXEnabled: false,
     methodPeakXCapacitiveOnly: false,
+    methodPeakXExactEnabled: true,
+    methodPeakXBandEnabled: false,
     methodRiskEnabled: false,
     methodRiskCapacitiveOnly: false,
     methodOutlierEnabled: false,
@@ -226,9 +230,17 @@ function createDefaultState(partOptions, colorByOptions, colorByDefault, showOnl
     methodPeakZCasesRaw: new Set(),
     methodPeakZCasesRawAll: new Set(),
     methodPeakZCasesRawCapacitive: new Set(),
+    methodPeakZExactCasesRawAll: new Set(),
+    methodPeakZExactCasesRawCapacitive: new Set(),
+    methodPeakZBandCasesRawAll: new Set(),
+    methodPeakZBandCasesRawCapacitive: new Set(),
     methodPeakXCasesRaw: new Set(),
     methodPeakXCasesRawAll: new Set(),
     methodPeakXCasesRawCapacitive: new Set(),
+    methodPeakXExactCasesRawAll: new Set(),
+    methodPeakXExactCasesRawCapacitive: new Set(),
+    methodPeakXBandCasesRawAll: new Set(),
+    methodPeakXBandCasesRawCapacitive: new Set(),
     methodRiskCasesRaw: new Set(),
     methodRiskCasesRawAll: new Set(),
     methodRiskCasesRawCapacitive: new Set(),
@@ -266,9 +278,17 @@ function sanitizeState(state, casesMeta, partOptions, colorByOptions, colorByDef
   next.methodPeakZCasesRaw = toKnownCaseSet(next.methodPeakZCasesRaw, knownCaseIds);
   next.methodPeakZCasesRawAll = toKnownCaseSet(next.methodPeakZCasesRawAll, knownCaseIds);
   next.methodPeakZCasesRawCapacitive = toKnownCaseSet(next.methodPeakZCasesRawCapacitive, knownCaseIds);
+  next.methodPeakZExactCasesRawAll = toKnownCaseSet(next.methodPeakZExactCasesRawAll, knownCaseIds);
+  next.methodPeakZExactCasesRawCapacitive = toKnownCaseSet(next.methodPeakZExactCasesRawCapacitive, knownCaseIds);
+  next.methodPeakZBandCasesRawAll = toKnownCaseSet(next.methodPeakZBandCasesRawAll, knownCaseIds);
+  next.methodPeakZBandCasesRawCapacitive = toKnownCaseSet(next.methodPeakZBandCasesRawCapacitive, knownCaseIds);
   next.methodPeakXCasesRaw = toKnownCaseSet(next.methodPeakXCasesRaw, knownCaseIds);
   next.methodPeakXCasesRawAll = toKnownCaseSet(next.methodPeakXCasesRawAll, knownCaseIds);
   next.methodPeakXCasesRawCapacitive = toKnownCaseSet(next.methodPeakXCasesRawCapacitive, knownCaseIds);
+  next.methodPeakXExactCasesRawAll = toKnownCaseSet(next.methodPeakXExactCasesRawAll, knownCaseIds);
+  next.methodPeakXExactCasesRawCapacitive = toKnownCaseSet(next.methodPeakXExactCasesRawCapacitive, knownCaseIds);
+  next.methodPeakXBandCasesRawAll = toKnownCaseSet(next.methodPeakXBandCasesRawAll, knownCaseIds);
+  next.methodPeakXBandCasesRawCapacitive = toKnownCaseSet(next.methodPeakXBandCasesRawCapacitive, knownCaseIds);
   next.methodRiskCasesRaw = toKnownCaseSet(next.methodRiskCasesRaw, knownCaseIds);
   next.methodRiskCasesRawAll = toKnownCaseSet(next.methodRiskCasesRawAll, knownCaseIds);
   next.methodRiskCasesRawCapacitive = toKnownCaseSet(next.methodRiskCasesRawCapacitive, knownCaseIds);
@@ -306,8 +326,12 @@ function sanitizeState(state, casesMeta, partOptions, colorByOptions, colorByDef
   next.methodIecCapacitiveOnly = Boolean(next.methodIecCapacitiveOnly);
   next.methodPeakZEnabled = Boolean(next.methodPeakZEnabled);
   next.methodPeakZCapacitiveOnly = Boolean(next.methodPeakZCapacitiveOnly);
+  next.methodPeakZExactEnabled = next.methodPeakZExactEnabled == null ? true : Boolean(next.methodPeakZExactEnabled);
+  next.methodPeakZBandEnabled = Boolean(next.methodPeakZBandEnabled);
   next.methodPeakXEnabled = Boolean(next.methodPeakXEnabled);
   next.methodPeakXCapacitiveOnly = Boolean(next.methodPeakXCapacitiveOnly);
+  next.methodPeakXExactEnabled = next.methodPeakXExactEnabled == null ? true : Boolean(next.methodPeakXExactEnabled);
+  next.methodPeakXBandEnabled = Boolean(next.methodPeakXBandEnabled);
   next.methodRiskEnabled = Boolean(next.methodRiskEnabled);
   next.methodRiskCapacitiveOnly = Boolean(next.methodRiskCapacitiveOnly);
   next.methodOutlierEnabled = Boolean(next.methodOutlierEnabled);
@@ -385,8 +409,12 @@ function ensureContext() {
     state.methodIecCapacitiveOnly = false;
     state.methodPeakZEnabled = false;
     state.methodPeakZCapacitiveOnly = false;
+    state.methodPeakZExactEnabled = true;
+    state.methodPeakZBandEnabled = false;
     state.methodPeakXEnabled = false;
     state.methodPeakXCapacitiveOnly = false;
+    state.methodPeakXExactEnabled = true;
+    state.methodPeakXBandEnabled = false;
     state.methodRiskEnabled = false;
     state.methodRiskCapacitiveOnly = false;
     state.methodOutlierEnabled = false;
@@ -398,9 +426,17 @@ function ensureContext() {
     state.methodPeakZCasesRaw = new Set();
     state.methodPeakZCasesRawAll = new Set();
     state.methodPeakZCasesRawCapacitive = new Set();
+    state.methodPeakZExactCasesRawAll = new Set();
+    state.methodPeakZExactCasesRawCapacitive = new Set();
+    state.methodPeakZBandCasesRawAll = new Set();
+    state.methodPeakZBandCasesRawCapacitive = new Set();
     state.methodPeakXCasesRaw = new Set();
     state.methodPeakXCasesRawAll = new Set();
     state.methodPeakXCasesRawCapacitive = new Set();
+    state.methodPeakXExactCasesRawAll = new Set();
+    state.methodPeakXExactCasesRawCapacitive = new Set();
+    state.methodPeakXBandCasesRawAll = new Set();
+    state.methodPeakXBandCasesRawCapacitive = new Set();
     state.methodRiskCasesRaw = new Set();
     state.methodRiskCasesRawAll = new Set();
     state.methodRiskCasesRawCapacitive = new Set();
@@ -600,8 +636,12 @@ function preselectionBaseSignature(baseData) {
     modeLen("iec_modes", "capacitive"),
     modeLen("peak_z_modes", "all"),
     modeLen("peak_z_modes", "capacitive"),
+    modeLen("peak_z_band_modes", "all"),
+    modeLen("peak_z_band_modes", "capacitive"),
     modeLen("peak_x_modes", "all"),
     modeLen("peak_x_modes", "capacitive"),
+    modeLen("peak_x_band_modes", "all"),
+    modeLen("peak_x_band_modes", "capacitive"),
     modeLen("risk_modes", "all"),
     modeLen("risk_modes", "capacitive"),
     modeLen("outlier_modes", "all"),
@@ -848,6 +888,17 @@ function isCaseSelectedByActiveMethod(state, caseId) {
   return false;
 }
 
+function unionEnabledSources(exactSet, bandSet, exactEnabled, bandEnabled) {
+  const out = new Set();
+  if (exactEnabled === true && exactSet instanceof Set) {
+    for (const cid of exactSet) out.add(String(cid));
+  }
+  if (bandEnabled === true && bandSet instanceof Set) {
+    for (const cid of bandSet) out.add(String(cid));
+  }
+  return out;
+}
+
 function recomputeSelectedCases(ctx) {
   if (!ctx || !ctx.state) return;
   const st = ctx.state;
@@ -878,8 +929,16 @@ function recomputeSelectedCases(ctx) {
   let rawIecCapacitive = st.methodIecCasesRawCapacitive instanceof Set ? st.methodIecCasesRawCapacitive : new Set();
   let rawPeakZAll = st.methodPeakZCasesRawAll instanceof Set ? st.methodPeakZCasesRawAll : new Set();
   let rawPeakZCapacitive = st.methodPeakZCasesRawCapacitive instanceof Set ? st.methodPeakZCasesRawCapacitive : new Set();
+  let rawPeakZExactAll = st.methodPeakZExactCasesRawAll instanceof Set ? st.methodPeakZExactCasesRawAll : new Set();
+  let rawPeakZExactCapacitive = st.methodPeakZExactCasesRawCapacitive instanceof Set ? st.methodPeakZExactCasesRawCapacitive : new Set();
+  let rawPeakZBandAll = st.methodPeakZBandCasesRawAll instanceof Set ? st.methodPeakZBandCasesRawAll : new Set();
+  let rawPeakZBandCapacitive = st.methodPeakZBandCasesRawCapacitive instanceof Set ? st.methodPeakZBandCasesRawCapacitive : new Set();
   let rawPeakXAll = st.methodPeakXCasesRawAll instanceof Set ? st.methodPeakXCasesRawAll : new Set();
   let rawPeakXCapacitive = st.methodPeakXCasesRawCapacitive instanceof Set ? st.methodPeakXCasesRawCapacitive : new Set();
+  let rawPeakXExactAll = st.methodPeakXExactCasesRawAll instanceof Set ? st.methodPeakXExactCasesRawAll : new Set();
+  let rawPeakXExactCapacitive = st.methodPeakXExactCasesRawCapacitive instanceof Set ? st.methodPeakXExactCasesRawCapacitive : new Set();
+  let rawPeakXBandAll = st.methodPeakXBandCasesRawAll instanceof Set ? st.methodPeakXBandCasesRawAll : new Set();
+  let rawPeakXBandCapacitive = st.methodPeakXBandCasesRawCapacitive instanceof Set ? st.methodPeakXBandCasesRawCapacitive : new Set();
   let rawRiskAll = st.methodRiskCasesRawAll instanceof Set ? st.methodRiskCasesRawAll : new Set();
   let rawRiskCapacitive = st.methodRiskCasesRawCapacitive instanceof Set ? st.methodRiskCasesRawCapacitive : new Set();
   let rawOutlierAll = st.methodOutlierCasesRawAll instanceof Set ? st.methodOutlierCasesRawAll : new Set();
@@ -891,8 +950,16 @@ function recomputeSelectedCases(ctx) {
     || !(st.methodIecCasesRawCapacitive instanceof Set)
     || !(st.methodPeakZCasesRawAll instanceof Set)
     || !(st.methodPeakZCasesRawCapacitive instanceof Set)
+    || !(st.methodPeakZExactCasesRawAll instanceof Set)
+    || !(st.methodPeakZExactCasesRawCapacitive instanceof Set)
+    || !(st.methodPeakZBandCasesRawAll instanceof Set)
+    || !(st.methodPeakZBandCasesRawCapacitive instanceof Set)
     || !(st.methodPeakXCasesRawAll instanceof Set)
     || !(st.methodPeakXCasesRawCapacitive instanceof Set)
+    || !(st.methodPeakXExactCasesRawAll instanceof Set)
+    || !(st.methodPeakXExactCasesRawCapacitive instanceof Set)
+    || !(st.methodPeakXBandCasesRawAll instanceof Set)
+    || !(st.methodPeakXBandCasesRawCapacitive instanceof Set)
     || !(st.methodRiskCasesRawAll instanceof Set)
     || !(st.methodRiskCasesRawCapacitive instanceof Set)
     || !(st.methodOutlierCasesRawAll instanceof Set)
@@ -901,10 +968,14 @@ function recomputeSelectedCases(ctx) {
     rawEnerginet = computeEnerginetCandidates(ctx);
     rawIecAll = computeIecCandidatesForMode(ctx, "all");
     rawIecCapacitive = computeIecCandidatesForMode(ctx, "capacitive");
-    rawPeakZAll = computeRankedModeCandidates(ctx, "peak_z_modes", "all", st.methodPeakZTopN);
-    rawPeakZCapacitive = computeRankedModeCandidates(ctx, "peak_z_modes", "capacitive", st.methodPeakZTopN);
-    rawPeakXAll = computeRankedModeCandidates(ctx, "peak_x_modes", "all", st.methodPeakXTopN);
-    rawPeakXCapacitive = computeRankedModeCandidates(ctx, "peak_x_modes", "capacitive", st.methodPeakXTopN);
+    rawPeakZExactAll = computeRankedModeCandidates(ctx, "peak_z_modes", "all", st.methodPeakZTopN);
+    rawPeakZExactCapacitive = computeRankedModeCandidates(ctx, "peak_z_modes", "capacitive", st.methodPeakZTopN);
+    rawPeakZBandAll = computeRankedModeCandidates(ctx, "peak_z_band_modes", "all", st.methodPeakZTopN);
+    rawPeakZBandCapacitive = computeRankedModeCandidates(ctx, "peak_z_band_modes", "capacitive", st.methodPeakZTopN);
+    rawPeakXExactAll = computeRankedModeCandidates(ctx, "peak_x_modes", "all", st.methodPeakXTopN);
+    rawPeakXExactCapacitive = computeRankedModeCandidates(ctx, "peak_x_modes", "capacitive", st.methodPeakXTopN);
+    rawPeakXBandAll = computeRankedModeCandidates(ctx, "peak_x_band_modes", "all", st.methodPeakXTopN);
+    rawPeakXBandCapacitive = computeRankedModeCandidates(ctx, "peak_x_band_modes", "capacitive", st.methodPeakXTopN);
     rawRiskAll = computeRankedModeCandidates(ctx, "risk_modes", "all", st.methodRiskTopN);
     rawRiskCapacitive = computeRankedModeCandidates(ctx, "risk_modes", "capacitive", st.methodRiskTopN);
     rawOutlierAll = computeRankedModeCandidates(ctx, "outlier_modes", "all", st.methodOutlierTopN);
@@ -912,16 +983,29 @@ function recomputeSelectedCases(ctx) {
     st.methodEnerginetCasesRaw = rawEnerginet;
     st.methodIecCasesRawAll = rawIecAll;
     st.methodIecCasesRawCapacitive = rawIecCapacitive;
-    st.methodPeakZCasesRawAll = rawPeakZAll;
-    st.methodPeakZCasesRawCapacitive = rawPeakZCapacitive;
-    st.methodPeakXCasesRawAll = rawPeakXAll;
-    st.methodPeakXCasesRawCapacitive = rawPeakXCapacitive;
+    st.methodPeakZExactCasesRawAll = rawPeakZExactAll;
+    st.methodPeakZExactCasesRawCapacitive = rawPeakZExactCapacitive;
+    st.methodPeakZBandCasesRawAll = rawPeakZBandAll;
+    st.methodPeakZBandCasesRawCapacitive = rawPeakZBandCapacitive;
+    st.methodPeakXExactCasesRawAll = rawPeakXExactAll;
+    st.methodPeakXExactCasesRawCapacitive = rawPeakXExactCapacitive;
+    st.methodPeakXBandCasesRawAll = rawPeakXBandAll;
+    st.methodPeakXBandCasesRawCapacitive = rawPeakXBandCapacitive;
     st.methodRiskCasesRawAll = rawRiskAll;
     st.methodRiskCasesRawCapacitive = rawRiskCapacitive;
     st.methodOutlierCasesRawAll = rawOutlierAll;
     st.methodOutlierCasesRawCapacitive = rawOutlierCapacitive;
     st.__methodRawCacheKey = cacheKey;
   }
+  rawPeakZAll = unionEnabledSources(rawPeakZExactAll, rawPeakZBandAll, Boolean(st.methodPeakZExactEnabled), Boolean(st.methodPeakZBandEnabled));
+  rawPeakZCapacitive = unionEnabledSources(rawPeakZExactCapacitive, rawPeakZBandCapacitive, Boolean(st.methodPeakZExactEnabled), Boolean(st.methodPeakZBandEnabled));
+  rawPeakXAll = unionEnabledSources(rawPeakXExactAll, rawPeakXBandAll, Boolean(st.methodPeakXExactEnabled), Boolean(st.methodPeakXBandEnabled));
+  rawPeakXCapacitive = unionEnabledSources(rawPeakXExactCapacitive, rawPeakXBandCapacitive, Boolean(st.methodPeakXExactEnabled), Boolean(st.methodPeakXBandEnabled));
+  st.methodPeakZCasesRawAll = rawPeakZAll;
+  st.methodPeakZCasesRawCapacitive = rawPeakZCapacitive;
+  st.methodPeakXCasesRawAll = rawPeakXAll;
+  st.methodPeakXCasesRawCapacitive = rawPeakXCapacitive;
+
   const rawIec = iecModeKey === "capacitive" ? rawIecCapacitive : rawIecAll;
   const rawPeakZ = peakZModeKey === "capacitive" ? rawPeakZCapacitive : rawPeakZAll;
   const rawPeakX = peakXModeKey === "capacitive" ? rawPeakXCapacitive : rawPeakXAll;
@@ -2505,8 +2589,12 @@ function bindPanelEvents(ctx, rows) {
       ctx.state.methodIecCapacitiveOnly = false;
       ctx.state.methodPeakZEnabled = false;
       ctx.state.methodPeakZCapacitiveOnly = false;
+      ctx.state.methodPeakZExactEnabled = true;
+      ctx.state.methodPeakZBandEnabled = false;
       ctx.state.methodPeakXEnabled = false;
       ctx.state.methodPeakXCapacitiveOnly = false;
+      ctx.state.methodPeakXExactEnabled = true;
+      ctx.state.methodPeakXBandEnabled = false;
       ctx.state.methodRiskEnabled = false;
       ctx.state.methodRiskCapacitiveOnly = false;
       ctx.state.methodOutlierEnabled = false;
