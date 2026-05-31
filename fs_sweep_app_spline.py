@@ -148,7 +148,7 @@ SELECTION_MODE_TICK_FONT_SIZE_PX = 12
 SELECTION_MODE_LINE_MARGIN_BOTTOM_PX = 72
 
 _plotly_selection_bridge = components.declare_component(
-    "plotly_selection_bridge_v16",
+    "plotly_selection_bridge_v17",
     path=str(os.path.join(os.path.dirname(__file__), "plotly_selection_bridge")),
 )
 
@@ -158,7 +158,7 @@ _plotly_export_button = components.declare_component(
 )
 
 _plotly_rx_toolbar = components.declare_component(
-    "plotly_rx_toolbar_v2",
+    "plotly_rx_toolbar_v3",
     path=str(os.path.join(os.path.dirname(__file__), "plotly_rx_toolbar")),
 )
 
@@ -547,11 +547,11 @@ def _compact_preselection_payload(payload: Dict[str, object]) -> Dict[str, objec
             "error": "Invalid preselection payload shape.",
             "limitation_note": "",
             "cases_count": 0,
-            "format": "compact_v4",
+            "format": "compact_v5",
             "by_f1": {},
         }
 
-    if str(payload.get("format", "")) == "compact_v4":
+    if str(payload.get("format", "")) == "compact_v5":
         return dict(payload)
 
     out: Dict[str, object] = {
@@ -559,7 +559,7 @@ def _compact_preselection_payload(payload: Dict[str, object]) -> Dict[str, objec
         "error": str(payload.get("error", "")),
         "limitation_note": str(payload.get("limitation_note", "")),
         "cases_count": int(_to_nonnegative_int(payload.get("cases_count", 0))),
-        "format": "compact_v4",
+        "format": "compact_v5",
         "by_f1": {},
     }
 
@@ -645,7 +645,7 @@ def _compact_preselection_payload(payload: Dict[str, object]) -> Dict[str, objec
             }
 
             by_f1_out[str(f1_key)] = {
-                "format": "compact_v4",
+                "format": "compact_v5",
                 "case_ids": list(case_ids),
                 "energinet": {
                     "z2": z2,
@@ -2062,7 +2062,7 @@ def _prepare_render_context(default_path: str) -> AppRenderContext:
     raw_preselection_payload = st.session_state.get(preselection_cache_key)
     payload_by_f1 = raw_preselection_payload.get("by_f1") if isinstance(raw_preselection_payload, dict) else {}
     cache_has_requested_base = isinstance(payload_by_f1, dict) and requested_base_key in payload_by_f1
-    cache_format_ok = isinstance(raw_preselection_payload, dict) and str(raw_preselection_payload.get("format", "")) == "compact_v4"
+    cache_format_ok = isinstance(raw_preselection_payload, dict) and str(raw_preselection_payload.get("format", "")) == "compact_v5"
     if not isinstance(raw_preselection_payload, dict) or not cache_has_requested_base or not cache_format_ok:
         build_location_caption = selected_location if selected_location else "<empty>"
         with st.spinner(f"Building plots for {build_location_caption} / {int(round(f_base))} Hz..."):

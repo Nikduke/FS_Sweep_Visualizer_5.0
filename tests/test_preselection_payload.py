@@ -2,8 +2,8 @@ import unittest
 
 import numpy as np
 
-from fs_sweep_app_spline import _compact_preselection_payload
-from preselection_shortlist import _compute_peak_x_ranking, _ranked_rows_payload
+from fs_sweep_app_spline import SweepSheet, _compact_preselection_payload
+from preselection_shortlist import build_preselection_payload_safe, _compute_peak_x_ranking, _ranked_rows_payload
 
 
 class RankedPayloadTests(unittest.TestCase):
@@ -72,7 +72,7 @@ class RankedPayloadTests(unittest.TestCase):
         )
 
         node = compact["by_f1"]["50"]
-        self.assertEqual(compact["format"], "compact_v4")
+        self.assertEqual(compact["format"], "compact_v5")
         self.assertEqual(node["case_ids"], ["B"])
         self.assertEqual(node["iec_modes"]["all"]["case_idx"], [0])
         self.assertEqual(node["iec_modes"]["all"]["vertex_orders"], [[2, 4]])
@@ -97,6 +97,38 @@ class RankedPayloadTests(unittest.TestCase):
         self.assertEqual(full["scores"], [30.0, 20.0, 4.0])
         self.assertEqual(cap["case_ids"], ["B", "A"])
         self.assertEqual(cap["scores"], [30.0, 20.0])
+
+    def test_build_payload_includes_compact_peak_x_candidates(self):
+        freq = np.arange(0.0, 361.0, 1.0)
+        cases = ("A__L", "B__L", "C__L")
+        r_vals = np.column_stack([
+            np.ones_like(freq),
+            np.full_like(freq, 2.0),
+            np.full_like(freq, 3.0),
+        ])
+        x_vals = np.column_stack([
+            np.sin(freq / 30.0) * 10.0,
+            np.cos(freq / 40.0) * 20.0,
+            -np.exp(-np.square((freq - 180.0) / 20.0)) * 100.0,
+        ])
+        data = {
+            "R1": SweepSheet(freq, cases, r_vals),
+            "X1": SweepSheet(freq, cases, x_vals),
+            "R0": SweepSheet(freq, cases, r_vals),
+            "X0": SweepSheet(freq, cases, x_vals),
+        }
+
+        raw = build_preselection_payload_safe(
+            data,
+            list(cases),
+            fundamentals_hz=(60.0,),
+            sequence_sheets=("R1", "X1"),
+        )
+        compact = _compact_preselection_payload(raw)
+        node = compact["by_f1"]["60"]
+
+        self.assertGreater(len(node["peak_x_modes"]["all"]["case_idx"]), 0)
+        self.assertGreater(len(node["peak_x_modes"]["capacitive"]["case_idx"]), 0)
 
 
 if __name__ == "__main__":

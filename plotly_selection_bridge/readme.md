@@ -47,7 +47,7 @@ Related sibling components (same repo):
 - `rx_status_dom_id` (string): optional parent DOM id for scatter status text
 - `rx_freq_steps` (int): fallback step count for status text
 - `preselection_payload` (object): server-precomputed selection-method candidate data
-  - compact format (`format=compact_v4`) is the active payload contract:
+  - compact format (`format=compact_v5`) is the active payload contract:
     - `case_ids` + array metrics (`energinet.z2/z3/z4/...`)
     - `RX hull` (`iec_modes`) `all` and `capacitive` modes encoded with `case_idx`, `vertex_orders`, and `vertex_zmax`
     - `Peak |Z|`, `Peak X`, `Risk`, and `Outliers` modes encoded with `case_idx`, `scores`, `zmax`, and `harmonic`

@@ -29,7 +29,7 @@ Core design:
   - `fsCaseUiStateChanged` notifies sibling components after no-rerun state changes.
 - selected-location preselection payload is cached in session state by:
   - `preselection_payload:{data_id}:{seq_label}:{location}` (single active base payload, overwritten on base switch).
-  - payload sent to JS uses compact array/index format (`compact_v4`) to reduce rerun transfer size.
+  - payload sent to JS uses compact array/index format (`compact_v5`) to reduce rerun transfer size.
 - on chart-context switches (`base frequency`, `location`, `Positive/Zero` sequence), heavy sequence caches are evicted before rebuild to reduce peak-memory spikes on constrained hosts.
 - non-active sequence/location/chart cache entries are pruned proactively in the same data session.
 - uploaded workbooks are parsed once and cached as live `SweepSheet` objects in session state:
