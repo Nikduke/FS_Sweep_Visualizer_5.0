@@ -23,6 +23,8 @@ let selectionStateListener = null;
 let activeStateKey = "";
 let lastSyncedStateVersion = Number.NaN;
 let lastSentFrameHeight = 0;
+let methodsDetailsStateKey = "";
+let methodsDetailsOpen = false;
 
 function debugEnabled() {
   try {
@@ -252,16 +254,14 @@ function syncSelectionControls(stateKey, force) {
     if (cbEnerginet) {
       cbEnerginet.disabled = !preselectionAvailable;
       cbEnerginet.checked = preselectionAvailable && Boolean(st.energinetEnabled);
-      const cnt = Number(st.energinetCandidateCount || 0);
       const lbl = document.getElementById("rx-method-energinet-label");
-      if (lbl) lbl.textContent = `Energinet (${cnt})`;
+      if (lbl) lbl.textContent = activeMethodLabel("Energinet", st.energinetCandidateCount, cbEnerginet.checked);
     }
     if (cbIec) {
       cbIec.disabled = !preselectionAvailable;
       cbIec.checked = preselectionAvailable && Boolean(st.iecEnabled);
-      const cnt = Number(st.iecCandidateCount || 0);
       const lbl = document.getElementById("rx-method-iec-label");
-      if (lbl) lbl.textContent = `RX hull (${cnt})`;
+      if (lbl) lbl.textContent = activeMethodLabel("RX hull", st.iecCandidateCount, cbIec.checked);
     }
     if (cbIecCapacitive) {
       const iecOn = preselectionAvailable && Boolean(st.iecEnabled);
@@ -276,7 +276,7 @@ function syncSelectionControls(stateKey, force) {
       cbPeakZ.disabled = !preselectionAvailable;
       cbPeakZ.checked = preselectionAvailable && Boolean(st.peakZEnabled);
       const lbl = document.getElementById("rx-method-peakz-label");
-      if (lbl) lbl.textContent = `Peak |Z| (${Number(st.peakZCandidateCount || 0)})`;
+      if (lbl) lbl.textContent = activeMethodLabel("Peak |Z|", st.peakZCandidateCount, cbPeakZ.checked);
     }
     if (cbPeakZCapacitive) {
       const on = preselectionAvailable && Boolean(st.peakZEnabled);
@@ -285,7 +285,7 @@ function syncSelectionControls(stateKey, force) {
     }
     if (cbPeakZExact) {
       cbPeakZExact.disabled = !preselectionAvailable;
-      cbPeakZExact.checked = preselectionAvailable && st.peakZExactEnabled !== false;
+      cbPeakZExact.checked = preselectionAvailable && Boolean(st.peakZExactEnabled);
     }
     if (cbPeakZBand) {
       cbPeakZBand.disabled = !preselectionAvailable;
@@ -300,7 +300,7 @@ function syncSelectionControls(stateKey, force) {
       cbPeakX.disabled = !preselectionAvailable;
       cbPeakX.checked = preselectionAvailable && Boolean(st.peakXEnabled);
       const lbl = document.getElementById("rx-method-peakx-label");
-      if (lbl) lbl.textContent = `Peak X (${Number(st.peakXCandidateCount || 0)})`;
+      if (lbl) lbl.textContent = activeMethodLabel("Peak X", st.peakXCandidateCount, cbPeakX.checked);
     }
     if (cbPeakXCapacitive) {
       const on = preselectionAvailable && Boolean(st.peakXEnabled);
@@ -309,7 +309,7 @@ function syncSelectionControls(stateKey, force) {
     }
     if (cbPeakXExact) {
       cbPeakXExact.disabled = !preselectionAvailable;
-      cbPeakXExact.checked = preselectionAvailable && st.peakXExactEnabled !== false;
+      cbPeakXExact.checked = preselectionAvailable && Boolean(st.peakXExactEnabled);
     }
     if (cbPeakXBand) {
       cbPeakXBand.disabled = !preselectionAvailable;
@@ -324,7 +324,7 @@ function syncSelectionControls(stateKey, force) {
       cbRisk.disabled = !preselectionAvailable;
       cbRisk.checked = preselectionAvailable && Boolean(st.riskEnabled);
       const lbl = document.getElementById("rx-method-risk-label");
-      if (lbl) lbl.textContent = `Risk (${Number(st.riskCandidateCount || 0)})`;
+      if (lbl) lbl.textContent = activeMethodLabel("Risk", st.riskCandidateCount, cbRisk.checked);
     }
     if (cbRiskCapacitive) {
       const on = preselectionAvailable && Boolean(st.riskEnabled);
@@ -338,7 +338,7 @@ function syncSelectionControls(stateKey, force) {
       cbOutlier.disabled = !preselectionAvailable;
       cbOutlier.checked = preselectionAvailable && Boolean(st.outlierEnabled);
       const lbl = document.getElementById("rx-method-outlier-label");
-      if (lbl) lbl.textContent = `Outliers (${Number(st.outlierCandidateCount || 0)})`;
+      if (lbl) lbl.textContent = activeMethodLabel("Outliers", st.outlierCandidateCount, cbOutlier.checked);
     }
     if (cbOutlierCapacitive) {
       const on = preselectionAvailable && Boolean(st.outlierEnabled);
@@ -538,6 +538,29 @@ function pushMethodEnabled(stateKey, apiMethod, flag) {
   }
 }
 
+function bindCheckedChange(el, handler) {
+  if (!el) return;
+  el.addEventListener("change", () => {
+    handler(Boolean(el.checked));
+  });
+}
+
+function bindMethodToggle(el, stateKey, apiMethod) {
+  bindCheckedChange(el, (checked) => {
+    pushMethodEnabled(stateKey, apiMethod, checked);
+  });
+}
+
+function bindRankedCapacitiveToggle(el, stateKey, apiMethod) {
+  bindCheckedChange(el, (checked) => {
+    pushRankedCapacitiveMode(stateKey, apiMethod, checked);
+  });
+}
+
+function activeMethodLabel(label, count, enabled) {
+  return enabled ? `${label} (${Number(count || 0)})` : label;
+}
+
 function render() {
   const root = document.getElementById("app");
   if (!root) return;
@@ -545,6 +568,10 @@ function render() {
   const dataId = asString("data_id", "");
   const chartId = asString("chart_id", "");
   const stateKey = `${String(dataId)}|${String(chartId)}`;
+  if (methodsDetailsStateKey !== stateKey) {
+    methodsDetailsStateKey = stateKey;
+    methodsDetailsOpen = false;
+  }
 
   root.innerHTML = `
     <style>
@@ -732,7 +759,7 @@ function render() {
           <button id="rx-freq-apply" type="button" class="rx-btn">Set</button>
         </div>
       </div>
-      <details class="rx-methods-details" open>
+      <details class="rx-methods-details" ${methodsDetailsOpen ? "open" : ""}>
         <summary class="rx-methods-summary">Selection methods</summary>
         <div class="rx-control-table rx-methods-table">
           <div class="rx-label">Energinet</div>
@@ -866,6 +893,7 @@ function render() {
   const riskCapacitiveCb = document.getElementById("rx-risk-capacitive");
   const outlierCb = document.getElementById("rx-method-outlier");
   const outlierCapacitiveCb = document.getElementById("rx-outlier-capacitive");
+  const methodsDetails = document.querySelector(".rx-methods-details");
   const t2 = document.getElementById("rx-t2");
   const t3 = document.getElementById("rx-t3");
   const t4 = document.getElementById("rx-t4");
@@ -937,95 +965,28 @@ function render() {
       }
     });
   }
-  if (energinetCb) {
-    energinetCb.addEventListener("change", () => {
-      try {
-        const api = getSelectionApi(stateKey);
-        if (api && typeof api.setEnerginetEnabled === "function") {
-          api.setEnerginetEnabled(Boolean(energinetCb.checked));
-          syncSelectionControls(stateKey, true);
-        }
-      } catch (e) {
-        debugWarn("energinet.change", e);
-      }
-    });
-  }
-  if (iecCb) {
-    iecCb.addEventListener("change", () => {
-      try {
-        const api = getSelectionApi(stateKey);
-        if (api && typeof api.setIecEnabled === "function") {
-          api.setIecEnabled(Boolean(iecCb.checked));
-          syncSelectionControls(stateKey, true);
-        }
-      } catch (e) {
-        debugWarn("iec.change", e);
-      }
-    });
-  }
-  if (iecCapacitiveCb) {
-    iecCapacitiveCb.addEventListener("change", () => {
-      pushIecCapacitiveMode(stateKey, Boolean(iecCapacitiveCb.checked));
-    });
-  }
-  if (peakZCb) {
-    peakZCb.addEventListener("change", () => {
-      pushMethodEnabled(stateKey, "setPeakZEnabled", Boolean(peakZCb.checked));
-    });
-  }
-  if (peakZExactCb) {
-    peakZExactCb.addEventListener("change", () => {
-      pushMethodEnabled(stateKey, "setPeakZExactEnabled", Boolean(peakZExactCb.checked));
-    });
-  }
-  if (peakZBandCb) {
-    peakZBandCb.addEventListener("change", () => {
-      pushMethodEnabled(stateKey, "setPeakZBandEnabled", Boolean(peakZBandCb.checked));
-    });
-  }
-  if (peakZCapacitiveCb) {
-    peakZCapacitiveCb.addEventListener("change", () => {
-      pushRankedCapacitiveMode(stateKey, "setPeakZCapacitiveOnly", Boolean(peakZCapacitiveCb.checked));
-    });
-  }
-  if (peakXCb) {
-    peakXCb.addEventListener("change", () => {
-      pushMethodEnabled(stateKey, "setPeakXEnabled", Boolean(peakXCb.checked));
-    });
-  }
-  if (peakXExactCb) {
-    peakXExactCb.addEventListener("change", () => {
-      pushMethodEnabled(stateKey, "setPeakXExactEnabled", Boolean(peakXExactCb.checked));
-    });
-  }
-  if (peakXBandCb) {
-    peakXBandCb.addEventListener("change", () => {
-      pushMethodEnabled(stateKey, "setPeakXBandEnabled", Boolean(peakXBandCb.checked));
-    });
-  }
-  if (peakXCapacitiveCb) {
-    peakXCapacitiveCb.addEventListener("change", () => {
-      pushRankedCapacitiveMode(stateKey, "setPeakXCapacitiveOnly", Boolean(peakXCapacitiveCb.checked));
-    });
-  }
-  if (riskCb) {
-    riskCb.addEventListener("change", () => {
-      pushMethodEnabled(stateKey, "setRiskEnabled", Boolean(riskCb.checked));
-    });
-  }
-  if (riskCapacitiveCb) {
-    riskCapacitiveCb.addEventListener("change", () => {
-      pushRankedCapacitiveMode(stateKey, "setRiskCapacitiveOnly", Boolean(riskCapacitiveCb.checked));
-    });
-  }
-  if (outlierCb) {
-    outlierCb.addEventListener("change", () => {
-      pushMethodEnabled(stateKey, "setOutlierEnabled", Boolean(outlierCb.checked));
-    });
-  }
-  if (outlierCapacitiveCb) {
-    outlierCapacitiveCb.addEventListener("change", () => {
-      pushRankedCapacitiveMode(stateKey, "setOutlierCapacitiveOnly", Boolean(outlierCapacitiveCb.checked));
+  bindMethodToggle(energinetCb, stateKey, "setEnerginetEnabled");
+  bindMethodToggle(iecCb, stateKey, "setIecEnabled");
+  bindCheckedChange(iecCapacitiveCb, (checked) => {
+    pushIecCapacitiveMode(stateKey, checked);
+  });
+  bindMethodToggle(peakZCb, stateKey, "setPeakZEnabled");
+  bindMethodToggle(peakZExactCb, stateKey, "setPeakZExactEnabled");
+  bindMethodToggle(peakZBandCb, stateKey, "setPeakZBandEnabled");
+  bindRankedCapacitiveToggle(peakZCapacitiveCb, stateKey, "setPeakZCapacitiveOnly");
+  bindMethodToggle(peakXCb, stateKey, "setPeakXEnabled");
+  bindMethodToggle(peakXExactCb, stateKey, "setPeakXExactEnabled");
+  bindMethodToggle(peakXBandCb, stateKey, "setPeakXBandEnabled");
+  bindRankedCapacitiveToggle(peakXCapacitiveCb, stateKey, "setPeakXCapacitiveOnly");
+  bindMethodToggle(riskCb, stateKey, "setRiskEnabled");
+  bindRankedCapacitiveToggle(riskCapacitiveCb, stateKey, "setRiskCapacitiveOnly");
+  bindMethodToggle(outlierCb, stateKey, "setOutlierEnabled");
+  bindRankedCapacitiveToggle(outlierCapacitiveCb, stateKey, "setOutlierCapacitiveOnly");
+  if (methodsDetails) {
+    methodsDetails.addEventListener("toggle", () => {
+      methodsDetailsOpen = Boolean(methodsDetails.open);
+      sendFrameHeightIfNeeded();
+      setTimeout(sendFrameHeightIfNeeded, 80);
     });
   }
 

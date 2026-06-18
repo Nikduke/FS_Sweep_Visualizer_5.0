@@ -29,7 +29,7 @@ Related sibling components (same repo):
   - `parts` (string[])
 - `part_labels` (string[])
 - `color_by_options` (string[])
-- `color_maps` (object): `{option -> color_hex[]}` aligned to `cases_meta` order; legacy `{case_id -> color_hex}` maps are still read defensively.
+- `color_maps` (object): `{option -> color_hex[]}` aligned to `cases_meta` order.
 - `auto_color_part_label` (string): case-part label used when `Color=Auto` (for filter color dots)
 - `color_by_default` (string)
 - `show_only_default` (bool)
@@ -44,8 +44,6 @@ Related sibling components (same repo):
 - `n_max` (float)
 - `show_harmonics_default` (bool)
 - `bin_width_hz_default` (float)
-- `rx_status_dom_id` (string): optional parent DOM id for scatter status text
-- `rx_freq_steps` (int): fallback step count for status text
 - `preselection_payload` (object): server-precomputed selection-method candidate data
   - compact format (`format=compact_v6`) is the active payload contract:
     - `case_ids` + array metrics (`energinet.z2/z3/z4/...`)
@@ -77,10 +75,9 @@ Related sibling components (same repo):
 6. Restyles scatter points (`rx`) without rerun.
    - scatter keeps allowed points visible for picking; `Hide unselected` is line-plot-only.
    - selected points use `diamond` symbol; others use `circle`.
-7. Updates scatter status text in parent DOM (`rx_status_dom_id`) with case-filtered visible count.
-8. Handles click selection toggle on scatter and line plots (`X`, `R`, `X/R`) into the same shared selection state.
+7. Handles click selection toggle on scatter and line plots (`X`, `R`, `X/R`) into the same shared selection state.
    - click case-id resolution validates candidates against known case IDs and falls back through trace metadata.
-9. Supports selection-table actions (clear/remove/import/csv).
+8. Supports selection-table actions (clear/remove/import/csv).
    - `Clear list` / `Download selected CSV` are rendered above the selected-cases table.
    - when scatter is hidden, `Hide unselected` is also rendered in the panel.
    - import list tokenization accepts space/comma/tab/newline separation.

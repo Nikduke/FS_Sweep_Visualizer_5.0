@@ -148,17 +148,17 @@ SELECTION_MODE_TICK_FONT_SIZE_PX = 12
 SELECTION_MODE_LINE_MARGIN_BOTTOM_PX = 72
 
 _plotly_selection_bridge = components.declare_component(
-    "plotly_selection_bridge_v18",
+    "plotly_selection_bridge_v19",
     path=str(os.path.join(os.path.dirname(__file__), "plotly_selection_bridge")),
 )
 
 _plotly_export_button = components.declare_component(
-    "plotly_export_button_v2",
+    "plotly_export_button_v3",
     path=str(os.path.join(os.path.dirname(__file__), "plotly_export_button")),
 )
 
 _plotly_rx_toolbar = components.declare_component(
-    "plotly_rx_toolbar_v4",
+    "plotly_rx_toolbar_v5",
     path=str(os.path.join(os.path.dirname(__file__), "plotly_rx_toolbar")),
 )
 
@@ -244,8 +244,6 @@ def plotly_selection_bridge(
     n_max: float = 1.0,
     show_harmonics_default: bool = True,
     bin_width_hz_default: float = 0.0,
-    rx_status_dom_id: str = "",
-    rx_freq_steps: int = 0,
     preselection_payload: Optional[Dict[str, object]] = None,
     energinet_t2_default: float = float(ENERGINET_DEFAULT_THRESHOLDS[2]),
     energinet_t3_default: float = float(ENERGINET_DEFAULT_THRESHOLDS[3]),
@@ -278,8 +276,6 @@ def plotly_selection_bridge(
         n_max=float(n_max),
         show_harmonics_default=bool(show_harmonics_default),
         bin_width_hz_default=float(bin_width_hz_default),
-        rx_status_dom_id=str(rx_status_dom_id),
-        rx_freq_steps=int(rx_freq_steps),
         preselection_payload=dict(preselection_payload or {}),
         energinet_t2_default=float(energinet_t2_default),
         energinet_t3_default=float(energinet_t3_default),
@@ -425,264 +421,6 @@ def _selection_bind_nonce_key(data_id: str, chart_id: str) -> str:
 
 def _chart_context_tracker_key(data_id: str) -> str:
     return f"chart_context_tracker:{data_id}"
-
-
-def _to_finite_float_or_none(raw: object) -> Optional[float]:
-    try:
-        v = float(raw)
-    except Exception:
-        return None
-    return float(v) if np.isfinite(v) else None
-
-
-def _to_nonnegative_int(raw: object) -> int:
-    try:
-        v = int(round(float(raw)))
-    except Exception:
-        return 0
-    return max(0, int(v))
-
-
-def _compact_iec_mode_payload(mode_payload: Dict[str, object], case_index: Dict[str, int]) -> Dict[str, object]:
-    vertex_orders_raw = mode_payload.get("iec_vertex_orders")
-    vertex_orders = vertex_orders_raw if isinstance(vertex_orders_raw, dict) else {}
-    vertex_zmax_raw = mode_payload.get("iec_vertex_zmax")
-    vertex_zmax = vertex_zmax_raw if isinstance(vertex_zmax_raw, dict) else {}
-    ids_raw = mode_payload.get("iec_case_ids")
-    if isinstance(ids_raw, list):
-        ids = [str(v) for v in ids_raw if str(v) != ""]
-    else:
-        ids = sorted([str(k) for k in vertex_orders.keys() if str(k) != ""])
-
-    case_idx: List[int] = []
-    orders_out: List[List[int]] = []
-    zmax_out: List[List[Optional[float]]] = []
-    seen_case_ids = set()
-    for cid in ids:
-        if cid in seen_case_ids:
-            continue
-        seen_case_ids.add(cid)
-        idx = case_index.get(str(cid))
-        if idx is None:
-            continue
-        ord_src = vertex_orders.get(str(cid))
-        ord_list = ord_src if isinstance(ord_src, list) else []
-        ord_clean: List[int] = []
-        seen_orders = set()
-        for hv_raw in ord_list:
-            hv = _to_nonnegative_int(hv_raw)
-            if hv < 1 or hv in seen_orders:
-                continue
-            seen_orders.add(hv)
-            ord_clean.append(int(hv))
-        zmax_src = vertex_zmax.get(str(cid))
-        zmax_by_harmonic = zmax_src if isinstance(zmax_src, dict) else {}
-        zmax_clean: List[Optional[float]] = []
-        for hv in ord_clean:
-            zmax_raw = zmax_by_harmonic.get(str(int(hv)), zmax_by_harmonic.get(int(hv)))
-            zmax = _to_finite_float_or_none(zmax_raw)
-            zmax_clean.append(zmax)
-        case_idx.append(int(idx))
-        orders_out.append(ord_clean)
-        zmax_out.append(zmax_clean)
-
-    return {
-        "case_idx": case_idx,
-        "vertex_orders": orders_out,
-        "vertex_zmax": zmax_out,
-        "n_env": int(_to_nonnegative_int(mode_payload.get("n_env", 0))),
-        "top_n_scope": "per_harmonic",
-    }
-
-
-def _compact_ranked_mode_payload(mode_payload: Dict[str, object], case_index: Dict[str, int]) -> Dict[str, object]:
-    ids_raw = mode_payload.get("case_ids")
-    ids = [str(v) for v in ids_raw] if isinstance(ids_raw, list) else []
-    scores_raw = mode_payload.get("scores")
-    zmax_raw = mode_payload.get("zmax")
-    harmonic_raw = mode_payload.get("harmonic")
-    scores = scores_raw if isinstance(scores_raw, list) else []
-    zmax_list = zmax_raw if isinstance(zmax_raw, list) else []
-    harmonic_list = harmonic_raw if isinstance(harmonic_raw, list) else []
-
-    case_idx: List[int] = []
-    scores_out: List[float] = []
-    zmax_out: List[float] = []
-    harmonic_out: List[int] = []
-    seen_rows = set()
-    for i, cid_raw in enumerate(ids):
-        cid = str(cid_raw)
-        if not cid:
-            continue
-        idx = case_index.get(cid)
-        if idx is None:
-            continue
-        score = _to_finite_float_or_none(scores[i] if i < len(scores) else None)
-        if score is None:
-            continue
-        zmax = _to_finite_float_or_none(zmax_list[i] if i < len(zmax_list) else None)
-        harmonic = _to_nonnegative_int(harmonic_list[i] if i < len(harmonic_list) else 0)
-        row_key = (cid, int(harmonic))
-        if row_key in seen_rows:
-            continue
-        seen_rows.add(row_key)
-        case_idx.append(int(idx))
-        scores_out.append(float(score))
-        zmax_out.append(float(zmax if zmax is not None else 0.0))
-        harmonic_out.append(int(harmonic))
-
-    return {
-        "case_idx": case_idx,
-        "scores": scores_out,
-        "zmax": zmax_out,
-        "harmonic": harmonic_out,
-        "top_n_scope": str(mode_payload.get("top_n_scope", "global")),
-    }
-
-
-def _compact_preselection_payload(payload: Dict[str, object]) -> Dict[str, object]:
-    if not isinstance(payload, dict):
-        return {
-            "available": False,
-            "error": "Invalid preselection payload shape.",
-            "limitation_note": "",
-            "cases_count": 0,
-            "format": "compact_v6",
-            "by_f1": {},
-        }
-
-    if str(payload.get("format", "")) == "compact_v6":
-        return dict(payload)
-
-    out: Dict[str, object] = {
-        "available": bool(payload.get("available", False)),
-        "error": str(payload.get("error", "")),
-        "limitation_note": str(payload.get("limitation_note", "")),
-        "cases_count": int(_to_nonnegative_int(payload.get("cases_count", 0))),
-        "format": "compact_v6",
-        "by_f1": {},
-    }
-
-    by_f1_raw = payload.get("by_f1")
-    by_f1_out: Dict[str, Dict[str, object]] = {}
-    if isinstance(by_f1_raw, dict):
-        for f1_key, base_node_raw in by_f1_raw.items():
-            if not isinstance(base_node_raw, dict):
-                continue
-
-            metrics_raw = base_node_raw.get("energinet_metrics")
-            metrics = metrics_raw if isinstance(metrics_raw, dict) else {}
-            case_ids = sorted([str(cid) for cid in metrics.keys() if str(cid) != ""])
-
-            iec_modes_raw = base_node_raw.get("iec_modes")
-            iec_modes = iec_modes_raw if isinstance(iec_modes_raw, dict) else {}
-            all_src = iec_modes.get("all")
-            capacitive_src = iec_modes.get("capacitive")
-            all_node = all_src if isinstance(all_src, dict) else base_node_raw
-            capacitive_node = capacitive_src if isinstance(capacitive_src, dict) else all_node
-            ranked_sources: List[Dict[str, object]] = []
-            for modes_name in (
-                "peak_z_modes",
-                "peak_z_band_modes",
-                "peak_x_modes",
-                "peak_x_band_modes",
-                "risk_modes",
-                "outlier_modes",
-            ):
-                modes_raw = base_node_raw.get(modes_name)
-                modes = modes_raw if isinstance(modes_raw, dict) else {}
-                for ranked_node_raw in (modes.get("all"), modes.get("capacitive")):
-                    if isinstance(ranked_node_raw, dict):
-                        ranked_sources.append(ranked_node_raw)
-
-            for mode_node in (all_node, capacitive_node):
-                mode_ids = mode_node.get("iec_case_ids") if isinstance(mode_node, dict) else None
-                if isinstance(mode_ids, list):
-                    for cid in mode_ids:
-                        c = str(cid)
-                        if c and c not in case_ids:
-                            case_ids.append(c)
-            for ranked_node in ranked_sources:
-                ranked_ids = ranked_node.get("case_ids")
-                if isinstance(ranked_ids, list):
-                    for cid in ranked_ids:
-                        c = str(cid)
-                        if c and c not in case_ids:
-                            case_ids.append(c)
-            case_ids = sorted(case_ids)
-            case_index = {cid: i for i, cid in enumerate(case_ids)}
-            ranked_modes: Dict[str, Dict[str, object]] = {}
-            for modes_name in (
-                "peak_z_modes",
-                "peak_z_band_modes",
-                "peak_x_modes",
-                "peak_x_band_modes",
-                "risk_modes",
-                "outlier_modes",
-            ):
-                modes_raw = base_node_raw.get(modes_name)
-                modes = modes_raw if isinstance(modes_raw, dict) else {}
-                all_mode = modes.get("all")
-                cap_mode = modes.get("capacitive")
-                ranked_modes[modes_name] = {
-                    "all": _compact_ranked_mode_payload(
-                        all_mode if isinstance(all_mode, dict) else {},
-                        case_index,
-                    ),
-                    "capacitive": _compact_ranked_mode_payload(
-                        cap_mode if isinstance(cap_mode, dict) else {},
-                        case_index,
-                    ),
-                }
-
-            z2: List[Optional[float]] = []
-            z3: List[Optional[float]] = []
-            z4: List[Optional[float]] = []
-            f2: List[Optional[float]] = []
-            f3: List[Optional[float]] = []
-            f4: List[Optional[float]] = []
-            for cid in case_ids:
-                row_raw = metrics.get(cid)
-                row = row_raw if isinstance(row_raw, dict) else {}
-                z2.append(_to_finite_float_or_none(row.get("zmax_band_2")))
-                z3.append(_to_finite_float_or_none(row.get("zmax_band_3")))
-                z4.append(_to_finite_float_or_none(row.get("zmax_band_4")))
-                f2.append(_to_finite_float_or_none(row.get("f_at_zmax_band_2")))
-                f3.append(_to_finite_float_or_none(row.get("f_at_zmax_band_3")))
-                f4.append(_to_finite_float_or_none(row.get("f_at_zmax_band_4")))
-
-            band_counts_raw = base_node_raw.get("band_sample_counts")
-            band_counts_in = band_counts_raw if isinstance(band_counts_raw, dict) else {}
-            band_counts = {
-                str(k): int(_to_nonnegative_int(v))
-                for k, v in band_counts_in.items()
-            }
-
-            by_f1_out[str(f1_key)] = {
-                "format": "compact_v6",
-                "case_ids": list(case_ids),
-                "energinet": {
-                    "z2": z2,
-                    "z3": z3,
-                    "z4": z4,
-                    "f2": f2,
-                    "f3": f3,
-                    "f4": f4,
-                },
-                "band_sample_counts": band_counts,
-                "iec_modes": {
-                    "all": _compact_iec_mode_payload(all_node, case_index),
-                    "capacitive": _compact_iec_mode_payload(capacitive_node, case_index),
-                },
-                "peak_z_modes": ranked_modes["peak_z_modes"],
-                "peak_z_band_modes": ranked_modes["peak_z_band_modes"],
-                "peak_x_modes": ranked_modes["peak_x_modes"],
-                "peak_x_band_modes": ranked_modes["peak_x_band_modes"],
-                "risk_modes": ranked_modes["risk_modes"],
-                "outlier_modes": ranked_modes["outlier_modes"],
-            }
-    out["by_f1"] = by_f1_out
-    return out
 
 
 def _evict_sequence_render_caches(data_id: str, seq_label: str) -> None:
@@ -1389,16 +1127,27 @@ def build_plot_spline(df: Optional[SheetLike], cases: List[str], f_base: float, 
     return fig, f_series
 
 
-def build_x_over_r_spline(df_r: Optional[SheetLike], df_x: Optional[SheetLike], cases: List[str], f_base: float,
-                          plot_height: int, seq_label: str, smooth: float, legend_entrywidth: int,
-                          enable_spline: bool,
-                          strip_location_suffix: bool, use_auto_width: bool, figure_width_px: int,
-                          case_colors: Dict[str, str],
-                          ) -> Tuple[go.Figure, Optional[np.ndarray], int, int]:
-    xr_dropped = 0
-    xr_total = 0
+def _build_derived_line_spline(
+    *,
+    df_r: Optional[SheetLike],
+    df_x: Optional[SheetLike],
+    cases: List[str],
+    f_base: float,
+    plot_height: int,
+    y_title: str,
+    hover_label: str,
+    smooth: float,
+    legend_entrywidth: int,
+    enable_spline: bool,
+    strip_location_suffix: bool,
+    use_auto_width: bool,
+    figure_width_px: int,
+    case_colors: Dict[str, str],
+    y_builder: Callable[[np.ndarray, np.ndarray], Tuple[np.ndarray, Optional[np.ndarray]]],
+) -> Tuple[go.Figure, Optional[np.ndarray], int, int]:
     f_series = None
-    eps = float(XR_EPS)
+    dropped = 0
+    total = 0
     TraceCls = go.Scatter if enable_spline else go.Scattergl
     traces: List[BaseTraceType] = []
     if df_r is not None and df_x is not None:
@@ -1407,72 +1156,13 @@ def build_x_over_r_spline(df_r: Optional[SheetLike], df_x: Optional[SheetLike], 
         freq_hz = np.asarray(cd, dtype=np.float64)
         both = [c for c in cases if (c in r_map and c in x_map)]
         f_series = sheet_frequency_values(df_r)
-        for case in both:
-            r = r_map[case]
-            x = x_map[case]
-            denom_ok = np.abs(r) >= eps
-            bad = (~denom_ok) | np.isnan(r) | np.isnan(x)
-            y = np.where(denom_ok, x / r, np.nan)
-            xr_dropped += int(np.count_nonzero(bad))
-            xr_total += int(r.size)
-            color = str(case_colors.get(case, "#1f77b4"))
-            line_cfg = dict(color=color)
-            mode = "lines"
-            tr = TraceCls(
-                x=freq_hz,
-                y=y,
-                mode=mode,
-                name=display_case_name(case) if strip_location_suffix else str(case),
-                meta={
-                    "kind": "line",
-                    "case_id": str(case),
-                    "display_case": str(display_case_name(case)),
-                    "legend_color": color,
-                    "x_unit": LINE_X_AXIS_UNIT,
-                    "f_base": float(f_base),
-                },
-                line=line_cfg,
-                opacity=1.0,
-                showlegend=True,
-                hovertemplate=(
-                    "Case=%{fullData.name}<br>f=%{x:.1f} Hz<br>X/R=%{y}<extra></extra>"
-                ),
-            )
-            if enable_spline and isinstance(tr, go.Scatter):
-                spline_line = dict(
-                    shape="spline",
-                    smoothing=float(smooth),
-                    color=color,
-                )
-                tr.update(line=spline_line)
-            traces.append(tr)
-    fig = go.Figure(data=traces)
-    y_title = "X1/R1 (unitless)" if seq_label == "Positive" else "X0/R0 (unitless)"
-    apply_common_layout(fig, plot_height, y_title, legend_entrywidth, use_auto_width, figure_width_px)
-    return fig, f_series, xr_dropped, xr_total
-
-
-def build_z_spline(df_r: Optional[SheetLike], df_x: Optional[SheetLike], cases: List[str], f_base: float,
-                   plot_height: int, seq_label: str, smooth: float, legend_entrywidth: int,
-                   enable_spline: bool,
-                   strip_location_suffix: bool, use_auto_width: bool, figure_width_px: int,
-                   case_colors: Dict[str, str],
-                   ) -> Tuple[go.Figure, Optional[np.ndarray]]:
-    f_series = None
-    TraceCls = go.Scatter if enable_spline else go.Scattergl
-    traces: List[BaseTraceType] = []
-    if df_r is not None and df_x is not None:
-        cd, r_map = prepare_sheet_arrays(df_r)
-        _cd2, x_map = prepare_sheet_arrays(df_x)
-        freq_hz = np.asarray(cd, dtype=np.float64)
-        both = [c for c in cases if (c in r_map and c in x_map)]
-        f_series = sheet_frequency_values(df_r)
-        y_title = "Z1 (\u03A9)" if seq_label == "Positive" else "Z0 (\u03A9)"
         for case in both:
             r = np.asarray(r_map[case], dtype=np.float64)
             x = np.asarray(x_map[case], dtype=np.float64)
-            valid = np.isfinite(r) & np.isfinite(x)
-            y = np.where(valid, np.sqrt(np.square(r) + np.square(x)), np.nan)
+            y, bad = y_builder(r, x)
+            if bad is not None:
+                dropped += int(np.count_nonzero(bad))
+                total += int(r.size)
             color = str(case_colors.get(case, "#1f77b4"))
             line_cfg = dict(color=color)
             tr = TraceCls(
@@ -1492,17 +1182,79 @@ def build_z_spline(df_r: Optional[SheetLike], df_x: Optional[SheetLike], cases: 
                 opacity=1.0,
                 showlegend=True,
                 hovertemplate=(
-                    "Case=%{fullData.name}<br>f=%{x:.1f} Hz" + f"<br>{y_title}=%{{y}}<extra></extra>"
+                    "Case=%{fullData.name}<br>f=%{x:.1f} Hz" + f"<br>{hover_label}=%{{y}}<extra></extra>"
                 ),
             )
             if enable_spline and isinstance(tr, go.Scatter):
                 tr.update(line=dict(shape="spline", smoothing=float(smooth), color=color))
             traces.append(tr)
     fig = go.Figure(data=traces)
-    y_title = "Z1 (\u03A9)" if seq_label == "Positive" else "Z0 (\u03A9)"
     apply_common_layout(fig, plot_height, y_title, legend_entrywidth, use_auto_width, figure_width_px)
-    return fig, f_series
+    return fig, f_series, dropped, total
 
+
+def build_x_over_r_spline(df_r: Optional[SheetLike], df_x: Optional[SheetLike], cases: List[str], f_base: float,
+                          plot_height: int, seq_label: str, smooth: float, legend_entrywidth: int,
+                          enable_spline: bool,
+                          strip_location_suffix: bool, use_auto_width: bool, figure_width_px: int,
+                          case_colors: Dict[str, str],
+                          ) -> Tuple[go.Figure, Optional[np.ndarray], int, int]:
+    eps = float(XR_EPS)
+
+    def build_y(r: np.ndarray, x: np.ndarray) -> Tuple[np.ndarray, Optional[np.ndarray]]:
+        denom_ok = np.abs(r) >= eps
+        bad = (~denom_ok) | np.isnan(r) | np.isnan(x)
+        return np.where(denom_ok, x / r, np.nan), bad
+
+    return _build_derived_line_spline(
+        df_r=df_r,
+        df_x=df_x,
+        cases=cases,
+        f_base=f_base,
+        plot_height=plot_height,
+        y_title="X1/R1 (unitless)" if seq_label == "Positive" else "X0/R0 (unitless)",
+        hover_label="X/R",
+        smooth=smooth,
+        legend_entrywidth=legend_entrywidth,
+        enable_spline=enable_spline,
+        strip_location_suffix=strip_location_suffix,
+        use_auto_width=use_auto_width,
+        figure_width_px=figure_width_px,
+        case_colors=case_colors,
+        y_builder=build_y,
+    )
+
+
+def build_z_spline(df_r: Optional[SheetLike], df_x: Optional[SheetLike], cases: List[str], f_base: float,
+                   plot_height: int, seq_label: str, smooth: float, legend_entrywidth: int,
+                   enable_spline: bool,
+                   strip_location_suffix: bool, use_auto_width: bool, figure_width_px: int,
+                   case_colors: Dict[str, str],
+                   ) -> Tuple[go.Figure, Optional[np.ndarray]]:
+    y_title = "Z1 (\u03A9)" if seq_label == "Positive" else "Z0 (\u03A9)"
+
+    def build_y(r: np.ndarray, x: np.ndarray) -> Tuple[np.ndarray, Optional[np.ndarray]]:
+        valid = np.isfinite(r) & np.isfinite(x)
+        return np.where(valid, np.sqrt(np.square(r) + np.square(x)), np.nan), None
+
+    fig, f_series, _dropped, _total = _build_derived_line_spline(
+        df_r=df_r,
+        df_x=df_x,
+        cases=cases,
+        f_base=f_base,
+        plot_height=plot_height,
+        y_title=y_title,
+        hover_label=y_title,
+        smooth=smooth,
+        legend_entrywidth=legend_entrywidth,
+        enable_spline=enable_spline,
+        strip_location_suffix=strip_location_suffix,
+        use_auto_width=use_auto_width,
+        figure_width_px=figure_width_px,
+        case_colors=case_colors,
+        y_builder=build_y,
+    )
+    return fig, f_series
 
 def _nearest_indices_for_targets(freq: np.ndarray, targets: np.ndarray) -> np.ndarray:
     freq_arr = np.asarray(freq, dtype=np.float64)
@@ -1724,6 +1476,7 @@ def _render_client_png_download(
     plot_index: int,
     state_key: str = "",
     selected_case_legend: bool = False,
+    header_title: str = "",
 ):
     export_contract = {
         "filename": str(filename),
@@ -1734,6 +1487,7 @@ def _render_client_png_download(
         "plot_index": int(plot_index),
         "state_key": str(state_key),
         "selected_case_legend": bool(selected_case_legend),
+        "header_title": str(header_title),
         "top_margin_px": int(TOP_MARGIN_PX),
         "bottom_axis_px": int(BOTTOM_AXIS_PX),
         "legend_padding_px": int(LEGEND_PADDING_PX),
@@ -1765,6 +1519,7 @@ def _render_client_png_download(
             "button_label": str(button_label),
             "state_key": str(state_key),
             "selected_case_legend": bool(selected_case_legend),
+            "header_title": str(header_title),
         },
         ensure_ascii=True,
         separators=(",", ":"),
@@ -1773,7 +1528,7 @@ def _render_client_png_download(
     _plotly_export_button(  # type: ignore[misc]
         export_contract=dict(export_contract),
         key=f"plotly_export_button:{key_hash}",
-        height=30,
+        height=32,
         default=0,
     )
 
@@ -2088,7 +1843,7 @@ def _prepare_render_context(default_path: str) -> AppRenderContext:
                 fundamentals_hz=(float(f_base),),
                 sequence_sheets=(str(seq[0]), str(seq[1])),
             )
-        raw_preselection_payload = _compact_preselection_payload(built_payload)
+        raw_preselection_payload = dict(built_payload)
         st.session_state[preselection_cache_key] = dict(raw_preselection_payload)
     preselection_payload = dict(raw_preselection_payload)
 
@@ -2292,6 +2047,74 @@ def _build_cached_xy_plot_item(
     return _make_plot_item(str(kind), fig, sheet_frequency_values(df), str(filename), str(chart_key))
 
 
+def _build_cached_pair_plot_item(
+    *,
+    kind: str,
+    df_r: Optional[SheetLike],
+    df_x: Optional[SheetLike],
+    cases: List[str],
+    data_id: str,
+    seq_label: str,
+    f_base: float,
+    plot_height: int,
+    smooth: float,
+    enable_spline: bool,
+    legend_entrywidth: int,
+    strip_location_suffix: bool,
+    render_auto_width: bool,
+    figure_width_px: int,
+    case_colors: Dict[str, str],
+    cases_sig: str,
+    colors_sig: str,
+    n_lo: float,
+    n_hi: float,
+    selection_mode_layout: bool,
+    y_title: str,
+    cache_title: str,
+    filename: str,
+    chart_key: str,
+    build_figure: Callable[[], Tuple[go.Figure, Dict[str, object]]],
+) -> Tuple[Dict[str, object], Dict[str, object]]:
+    sig_payload = _line_sig_payload(
+        kind=str(kind),
+        cases_sig=str(cases_sig),
+        f_base=float(f_base),
+        plot_height=int(plot_height),
+        smooth=float(smooth),
+        enable_spline=bool(enable_spline),
+        legend_entrywidth=int(legend_entrywidth),
+        strip_location_suffix=bool(strip_location_suffix),
+        render_auto_width=bool(render_auto_width),
+        figure_width_px=int(figure_width_px),
+        colors_sig=str(colors_sig),
+        title=str(cache_title),
+        n_lo=float(n_lo),
+        n_hi=float(n_hi),
+        selection_mode_layout=bool(selection_mode_layout),
+    )
+
+    def builder() -> Tuple[go.Figure, Dict[str, object]]:
+        fig_built, meta_built = build_figure()
+        _apply_line_harmonic_xaxis(fig_built, f_base=float(f_base), n_lo=float(n_lo), n_hi=float(n_hi))
+        if selection_mode_layout:
+            apply_selection_mode_line_layout(
+                fig=fig_built,
+                y_title=str(y_title),
+                target_height=max(420, int(round(float(plot_height) * float(RX_SCATTER_HEIGHT_FACTOR)))),
+            )
+        return fig_built, dict(meta_built or {})
+
+    fig, meta = _get_or_build_cached_line_figure(
+        data_id=data_id,
+        seq_label=seq_label,
+        kind=str(kind),
+        sig_payload=sig_payload,
+        builder=builder,
+    )
+    item = _make_plot_item(str(kind), fig, sheet_frequency_values(df_r), str(filename), str(chart_key))
+    return item, meta
+
+
 def _build_cached_xr_plot_item(
     *,
     df_r: Optional[SheetLike],
@@ -2314,25 +2137,9 @@ def _build_cached_xr_plot_item(
     n_hi: float,
     selection_mode_layout: bool,
 ) -> Tuple[Dict[str, object], int, int]:
-    sig_payload = _line_sig_payload(
-        kind="xr",
-        cases_sig=str(cases_sig),
-        f_base=float(f_base),
-        plot_height=int(plot_height),
-        smooth=float(smooth),
-        enable_spline=bool(enable_spline),
-        legend_entrywidth=int(legend_entrywidth),
-        strip_location_suffix=bool(strip_location_suffix),
-        render_auto_width=bool(render_auto_width),
-        figure_width_px=int(figure_width_px),
-        colors_sig=str(colors_sig),
-        title=str(seq_label),
-        n_lo=float(n_lo),
-        n_hi=float(n_hi),
-        selection_mode_layout=bool(selection_mode_layout),
-    )
+    y_title = _sequence_y_titles(str(seq_label))["xr"]
 
-    def builder() -> Tuple[go.Figure, Dict[str, object]]:
+    def build_figure() -> Tuple[go.Figure, Dict[str, object]]:
         fig_built, _, xr_dropped_built, xr_total_built = build_x_over_r_spline(
             df_r,
             df_x,
@@ -2348,26 +2155,38 @@ def _build_cached_xr_plot_item(
             figure_width_px,
             case_colors,
         )
-        _apply_line_harmonic_xaxis(fig_built, f_base=float(f_base), n_lo=float(n_lo), n_hi=float(n_hi))
-        if selection_mode_layout:
-            apply_selection_mode_line_layout(
-                fig=fig_built,
-                y_title=_sequence_y_titles(str(seq_label))["xr"],
-                target_height=max(420, int(round(float(plot_height) * float(RX_SCATTER_HEIGHT_FACTOR)))),
-            )
         return fig_built, {
             "xr_dropped": int(xr_dropped_built),
             "xr_total": int(xr_total_built),
         }
 
-    fig, meta = _get_or_build_cached_line_figure(
+    item, meta = _build_cached_pair_plot_item(
+        kind="xr",
+        df_r=df_r,
+        df_x=df_x,
+        cases=cases,
         data_id=data_id,
         seq_label=seq_label,
-        kind="xr",
-        sig_payload=sig_payload,
-        builder=builder,
+        f_base=f_base,
+        plot_height=plot_height,
+        smooth=smooth,
+        enable_spline=enable_spline,
+        legend_entrywidth=legend_entrywidth,
+        strip_location_suffix=strip_location_suffix,
+        render_auto_width=render_auto_width,
+        figure_width_px=figure_width_px,
+        case_colors=case_colors,
+        cases_sig=cases_sig,
+        colors_sig=colors_sig,
+        n_lo=n_lo,
+        n_hi=n_hi,
+        selection_mode_layout=selection_mode_layout,
+        y_title=y_title,
+        cache_title=str(seq_label),
+        filename="X_over_R_full_legend.png",
+        chart_key="plot_xr",
+        build_figure=build_figure,
     )
-    item = _make_plot_item("xr", fig, sheet_frequency_values(df_r), "X_over_R_full_legend.png", "plot_xr")
     return item, int(meta.get("xr_dropped", 0)), int(meta.get("xr_total", 0))
 
 
@@ -2394,25 +2213,8 @@ def _build_cached_z_plot_item(
     selection_mode_layout: bool,
 ) -> Dict[str, object]:
     y_title = _sequence_y_titles(str(seq_label))["z"]
-    sig_payload = _line_sig_payload(
-        kind="z",
-        cases_sig=str(cases_sig),
-        f_base=float(f_base),
-        plot_height=int(plot_height),
-        smooth=float(smooth),
-        enable_spline=bool(enable_spline),
-        legend_entrywidth=int(legend_entrywidth),
-        strip_location_suffix=bool(strip_location_suffix),
-        render_auto_width=bool(render_auto_width),
-        figure_width_px=int(figure_width_px),
-        colors_sig=str(colors_sig),
-        title=str(y_title),
-        n_lo=float(n_lo),
-        n_hi=float(n_hi),
-        selection_mode_layout=bool(selection_mode_layout),
-    )
 
-    def builder() -> Tuple[go.Figure, Dict[str, object]]:
+    def build_figure() -> Tuple[go.Figure, Dict[str, object]]:
         fig_built, _ = build_z_spline(
             df_r,
             df_x,
@@ -2428,24 +2230,36 @@ def _build_cached_z_plot_item(
             figure_width_px,
             case_colors,
         )
-        _apply_line_harmonic_xaxis(fig_built, f_base=float(f_base), n_lo=float(n_lo), n_hi=float(n_hi))
-        if selection_mode_layout:
-            apply_selection_mode_line_layout(
-                fig=fig_built,
-                y_title=str(y_title),
-                target_height=max(420, int(round(float(plot_height) * float(RX_SCATTER_HEIGHT_FACTOR)))),
-            )
         return fig_built, {}
 
-    fig, _ = _get_or_build_cached_line_figure(
+    item, _meta = _build_cached_pair_plot_item(
+        kind="z",
+        df_r=df_r,
+        df_x=df_x,
+        cases=cases,
         data_id=data_id,
         seq_label=seq_label,
-        kind="z",
-        sig_payload=sig_payload,
-        builder=builder,
+        f_base=f_base,
+        plot_height=plot_height,
+        smooth=smooth,
+        enable_spline=enable_spline,
+        legend_entrywidth=legend_entrywidth,
+        strip_location_suffix=strip_location_suffix,
+        render_auto_width=render_auto_width,
+        figure_width_px=figure_width_px,
+        case_colors=case_colors,
+        cases_sig=cases_sig,
+        colors_sig=colors_sig,
+        n_lo=n_lo,
+        n_hi=n_hi,
+        selection_mode_layout=selection_mode_layout,
+        y_title=y_title,
+        cache_title=y_title,
+        filename="Z_full_legend.png",
+        chart_key="plot_z",
+        build_figure=build_figure,
     )
-    return _make_plot_item("z", fig, sheet_frequency_values(df_r), "Z_full_legend.png", "plot_z")
-
+    return item
 
 def _rx_scatter_cache_keys(data_id: str, seq_label: str) -> Tuple[str, str, str, str]:
     prefix = f"{str(data_id)}:{str(seq_label)}"
@@ -2703,27 +2517,20 @@ def _render_plot_header(
         unsafe_allow_html=True,
     )
     if export_item is None:
-        cols = st.columns([0.72, 0.28], gap="small", vertical_alignment="center")
-        with cols[0]:
-            st.markdown(f"<div class='fs-plot-head-title'>{_html_escape(title)}</div>", unsafe_allow_html=True)
-        with cols[1]:
-            st.markdown("<div style='height:30px'></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='fs-plot-head-title'>{_html_escape(title)}</div>", unsafe_allow_html=True)
         return
 
-    cols = st.columns([0.72, 0.28], gap="small", vertical_alignment="center")
-    with cols[0]:
-        st.markdown(f"<div class='fs-plot-head-title'>{_html_escape(title)}</div>", unsafe_allow_html=True)
-    with cols[1]:
-        _render_client_png_download(
-            filename=str(export_item.get("filename", "plot.png")),
-            scale=int(export_scale),
-            button_label="Export PNG",
-            plot_height=int(plot_height),
-            legend_entrywidth=int(legend_entrywidth),
-            plot_index=int(export_item.get("plot_index", 0)),
-            state_key=str(export_item.get("state_key", "")),
-            selected_case_legend=bool(export_item.get("selected_case_legend", False)),
-        )
+    _render_client_png_download(
+        filename=str(export_item.get("filename", "plot.png")),
+        scale=int(export_scale),
+        button_label="Export PNG",
+        plot_height=int(plot_height),
+        legend_entrywidth=int(legend_entrywidth),
+        plot_index=int(export_item.get("plot_index", 0)),
+        state_key=str(export_item.get("state_key", "")),
+        selected_case_legend=bool(export_item.get("selected_case_legend", False)),
+        header_title=str(title),
+    )
 
 
 def _render_line_plot_item(
@@ -2775,9 +2582,9 @@ def _render_rx_scatter_plot(
     ctx: AppRenderContext,
     plot_order: List[str],
     download_config: Dict[str, object],
-) -> Tuple[str, int]:
+) -> None:
     if not ctx.show_plot_rx:
-        return "", 0
+        return
 
     sequence_suffix = "1" if str(ctx.seq_label) == "Positive" else "0"
     rx_plot_index = int(plot_order.index("rx")) if "rx" in plot_order else 0
@@ -2793,7 +2600,7 @@ def _render_rx_scatter_plot(
         plot_height=int(rx_height),
     )
 
-    rx_fig, rx_freq_steps = _get_or_build_cached_rx_scatter_figure(
+    rx_fig, _ = _get_or_build_cached_rx_scatter_figure(
         data_id=str(ctx.data_id),
         seq_label=str(ctx.seq_label),
         df_r=ctx.df_r,
@@ -2811,7 +2618,6 @@ def _render_rx_scatter_plot(
         key="plot_rx",
     )
     _render_rx_client_step_buttons(rx_plot_index, data_id=ctx.data_id, chart_id=ctx.chart_id)
-    return "", int(rx_freq_steps)
 
 
 def _render_selection_mode_row(
@@ -2823,17 +2629,13 @@ def _render_selection_mode_row(
     download_config: Dict[str, object],
     export_scale: int,
     legend_entrywidth: int,
-) -> Tuple[str, int]:
+) -> None:
     if not row_kinds:
-        return "", 0
-
-    rx_status_dom_id = ""
-    rx_freq_steps = 0
+        return
 
     def render_kind(kind: str) -> None:
-        nonlocal rx_status_dom_id, rx_freq_steps
         if kind == "rx":
-            rx_status_dom_id, rx_freq_steps = _render_rx_scatter_plot(
+            _render_rx_scatter_plot(
                 ctx=ctx,
                 plot_order=plot_order,
                 download_config=download_config,
@@ -2850,13 +2652,12 @@ def _render_selection_mode_row(
 
     if len(row_kinds) == 1:
         render_kind(str(row_kinds[0]))
-        return str(rx_status_dom_id), int(rx_freq_steps)
+        return
 
     row_columns = st.columns(len(row_kinds), gap="medium")
     for column, kind in zip(row_columns, row_kinds):
         with column:
             render_kind(str(kind))
-    return str(rx_status_dom_id), int(rx_freq_steps)
 
 
 def _render_enabled_plots(
@@ -2868,7 +2669,7 @@ def _render_enabled_plots(
     download_config: Dict[str, object],
     export_scale: int,
     legend_entrywidth: int,
-) -> Tuple[str, int]:
+) -> None:
     if ctx.selection_mode_layout:
         first_row_kinds: List[str] = []
         if ctx.show_plot_rx:
@@ -2884,7 +2685,7 @@ def _render_enabled_plots(
         if ctx.show_plot_z and "z" in plot_items_by_kind:
             second_row_kinds.append("z")
 
-        rx_status_dom_id, rx_freq_steps = _render_selection_mode_row(
+        _render_selection_mode_row(
             row_kinds=first_row_kinds,
             ctx=ctx,
             plot_items_by_kind=plot_items_by_kind,
@@ -2895,7 +2696,7 @@ def _render_enabled_plots(
         )
         if first_row_kinds and second_row_kinds:
             st.markdown("<div style='height:36px'></div>", unsafe_allow_html=True)
-        second_rx_status_dom_id, second_rx_freq_steps = _render_selection_mode_row(
+        _render_selection_mode_row(
             row_kinds=second_row_kinds,
             ctx=ctx,
             plot_items_by_kind=plot_items_by_kind,
@@ -2904,10 +2705,7 @@ def _render_enabled_plots(
             export_scale=int(export_scale),
             legend_entrywidth=int(legend_entrywidth),
         )
-        return (
-            str(rx_status_dom_id or second_rx_status_dom_id),
-            int(rx_freq_steps or second_rx_freq_steps),
-        )
+        return
 
     scatter_slot = st.container()
     line_slot = st.container()
@@ -2923,7 +2721,7 @@ def _render_enabled_plots(
         )
 
     with scatter_slot:
-        return _render_rx_scatter_plot(
+        _render_rx_scatter_plot(
             ctx=ctx,
             plot_order=plot_order,
             download_config=download_config,
@@ -3116,7 +2914,7 @@ def main():
     for kind, item in plot_items_by_kind.items():
         item["plot_index"] = int(line_plot_index_map.get(str(kind), line_plot_base_index))
 
-    rx_status_dom_id, rx_freq_steps_for_bridge = _render_enabled_plots(
+    _render_enabled_plots(
         ctx=ctx,
         plot_items=plot_items,
         plot_items_by_kind=plot_items_by_kind,
@@ -3153,8 +2951,6 @@ def main():
             n_max=float(n_hi),
             show_harmonics_default=True,
             bin_width_hz_default=0.0,
-            rx_status_dom_id=str(rx_status_dom_id),
-            rx_freq_steps=int(rx_freq_steps_for_bridge),
             preselection_payload=dict(preselection_payload),
             energinet_t2_default=float(energinet_defaults[2]),
             energinet_t3_default=float(energinet_defaults[3]),

@@ -115,6 +115,33 @@ function anyMethodEnabled(state) {
   );
 }
 
+function commitSelectionApiChange(label, mutate) {
+  const nextCtx = ensureContext();
+  if (!nextCtx) return false;
+  if (typeof mutate === "function") mutate(nextCtx);
+  recomputeSelectedCases(nextCtx);
+  nextCtx.state.importStatus = "";
+  bumpStateVersion(nextCtx.state);
+  renderPanel();
+  applyStateToPlots();
+  notifyExternalSelectionStateChanged(nextCtx, `${label}.notify`);
+  return true;
+}
+
+function setMethodEnabled(nextCtx, enabledField, flag, capacitiveField) {
+  nextCtx.state[enabledField] = Boolean(flag);
+  if (capacitiveField && !nextCtx.state[enabledField]) {
+    nextCtx.state[capacitiveField] = false;
+  }
+  if (!anyMethodEnabled(nextCtx.state)) {
+    nextCtx.state.methodExcludedCases = new Set();
+  }
+}
+
+function setCapacitiveOnly(nextCtx, enabledField, capacitiveField, flag) {
+  nextCtx.state[capacitiveField] = nextCtx.state[enabledField] ? flag === true : false;
+}
+
 function registerExternalSelectionApi(ctx) {
   if (!ctx) return;
   const key = `${ctx.dataId}|${ctx.chartId}`;
@@ -209,11 +236,11 @@ function registerExternalSelectionApi(ctx) {
         iecCapacitiveOnly: Boolean(st.methodIecCapacitiveOnly),
         peakZEnabled: Boolean(st.methodPeakZEnabled),
         peakZCapacitiveOnly: Boolean(st.methodPeakZCapacitiveOnly),
-        peakZExactEnabled: st.methodPeakZExactEnabled !== false,
+        peakZExactEnabled: Boolean(st.methodPeakZExactEnabled),
         peakZBandEnabled: Boolean(st.methodPeakZBandEnabled),
         peakXEnabled: Boolean(st.methodPeakXEnabled),
         peakXCapacitiveOnly: Boolean(st.methodPeakXCapacitiveOnly),
-        peakXExactEnabled: st.methodPeakXExactEnabled !== false,
+        peakXExactEnabled: Boolean(st.methodPeakXExactEnabled),
         peakXBandEnabled: Boolean(st.methodPeakXBandEnabled),
         riskEnabled: Boolean(st.methodRiskEnabled),
         riskCapacitiveOnly: Boolean(st.methodRiskCapacitiveOnly),
@@ -255,308 +282,126 @@ function registerExternalSelectionApi(ctx) {
       };
     },
     setShowOnlySelected: (flag) => {
-      const nextCtx = ensureContext();
-      if (!nextCtx) return false;
-      nextCtx.state.showOnlySelected = flag === true;
-      nextCtx.state.importStatus = "";
-      recomputeSelectedCases(nextCtx);
-      bumpStateVersion(nextCtx.state);
-      renderPanel();
-      applyStateToPlots();
-      notifyExternalSelectionStateChanged(nextCtx, "setShowOnlySelected.notify");
-      return true;
+      return commitSelectionApiChange("setShowOnlySelected", (nextCtx) => {
+        nextCtx.state.showOnlySelected = flag === true;
+      });
     },
     setEnerginetEnabled: (flag) => {
-      const nextCtx = ensureContext();
-      if (!nextCtx) return false;
-      nextCtx.state.methodEnerginetEnabled = Boolean(flag);
-      if (!anyMethodEnabled(nextCtx.state)) {
-        nextCtx.state.methodExcludedCases = new Set();
-      }
-      recomputeSelectedCases(nextCtx);
-      nextCtx.state.importStatus = "";
-      bumpStateVersion(nextCtx.state);
-      renderPanel();
-      applyStateToPlots();
-      notifyExternalSelectionStateChanged(nextCtx, "setEnerginetEnabled.notify");
-      return true;
+      return commitSelectionApiChange("setEnerginetEnabled", (nextCtx) => {
+        setMethodEnabled(nextCtx, "methodEnerginetEnabled", flag);
+      });
     },
     setIecEnabled: (flag) => {
-      const nextCtx = ensureContext();
-      if (!nextCtx) return false;
-      nextCtx.state.methodIecEnabled = Boolean(flag);
-      if (!nextCtx.state.methodIecEnabled) {
-        nextCtx.state.methodIecCapacitiveOnly = false;
-      }
-      if (!anyMethodEnabled(nextCtx.state)) {
-        nextCtx.state.methodExcludedCases = new Set();
-      }
-      recomputeSelectedCases(nextCtx);
-      nextCtx.state.importStatus = "";
-      bumpStateVersion(nextCtx.state);
-      renderPanel();
-      applyStateToPlots();
-      notifyExternalSelectionStateChanged(nextCtx, "setIecEnabled.notify");
-      return true;
+      return commitSelectionApiChange("setIecEnabled", (nextCtx) => {
+        setMethodEnabled(nextCtx, "methodIecEnabled", flag, "methodIecCapacitiveOnly");
+      });
     },
     setPeakZEnabled: (flag) => {
-      const nextCtx = ensureContext();
-      if (!nextCtx) return false;
-      nextCtx.state.methodPeakZEnabled = Boolean(flag);
-      if (!nextCtx.state.methodPeakZEnabled) nextCtx.state.methodPeakZCapacitiveOnly = false;
-      if (!anyMethodEnabled(nextCtx.state)) nextCtx.state.methodExcludedCases = new Set();
-      recomputeSelectedCases(nextCtx);
-      nextCtx.state.importStatus = "";
-      bumpStateVersion(nextCtx.state);
-      renderPanel();
-      applyStateToPlots();
-      notifyExternalSelectionStateChanged(nextCtx, "setPeakZEnabled.notify");
-      return true;
+      return commitSelectionApiChange("setPeakZEnabled", (nextCtx) => {
+        setMethodEnabled(nextCtx, "methodPeakZEnabled", flag, "methodPeakZCapacitiveOnly");
+      });
     },
     setPeakXEnabled: (flag) => {
-      const nextCtx = ensureContext();
-      if (!nextCtx) return false;
-      nextCtx.state.methodPeakXEnabled = Boolean(flag);
-      if (!nextCtx.state.methodPeakXEnabled) nextCtx.state.methodPeakXCapacitiveOnly = false;
-      if (!anyMethodEnabled(nextCtx.state)) nextCtx.state.methodExcludedCases = new Set();
-      recomputeSelectedCases(nextCtx);
-      nextCtx.state.importStatus = "";
-      bumpStateVersion(nextCtx.state);
-      renderPanel();
-      applyStateToPlots();
-      notifyExternalSelectionStateChanged(nextCtx, "setPeakXEnabled.notify");
-      return true;
+      return commitSelectionApiChange("setPeakXEnabled", (nextCtx) => {
+        setMethodEnabled(nextCtx, "methodPeakXEnabled", flag, "methodPeakXCapacitiveOnly");
+      });
     },
     setRiskEnabled: (flag) => {
-      const nextCtx = ensureContext();
-      if (!nextCtx) return false;
-      nextCtx.state.methodRiskEnabled = Boolean(flag);
-      if (!nextCtx.state.methodRiskEnabled) nextCtx.state.methodRiskCapacitiveOnly = false;
-      if (!anyMethodEnabled(nextCtx.state)) nextCtx.state.methodExcludedCases = new Set();
-      recomputeSelectedCases(nextCtx);
-      nextCtx.state.importStatus = "";
-      bumpStateVersion(nextCtx.state);
-      renderPanel();
-      applyStateToPlots();
-      notifyExternalSelectionStateChanged(nextCtx, "setRiskEnabled.notify");
-      return true;
+      return commitSelectionApiChange("setRiskEnabled", (nextCtx) => {
+        setMethodEnabled(nextCtx, "methodRiskEnabled", flag, "methodRiskCapacitiveOnly");
+      });
     },
     setOutlierEnabled: (flag) => {
-      const nextCtx = ensureContext();
-      if (!nextCtx) return false;
-      nextCtx.state.methodOutlierEnabled = Boolean(flag);
-      if (!nextCtx.state.methodOutlierEnabled) nextCtx.state.methodOutlierCapacitiveOnly = false;
-      if (!anyMethodEnabled(nextCtx.state)) nextCtx.state.methodExcludedCases = new Set();
-      recomputeSelectedCases(nextCtx);
-      nextCtx.state.importStatus = "";
-      bumpStateVersion(nextCtx.state);
-      renderPanel();
-      applyStateToPlots();
-      notifyExternalSelectionStateChanged(nextCtx, "setOutlierEnabled.notify");
-      return true;
+      return commitSelectionApiChange("setOutlierEnabled", (nextCtx) => {
+        setMethodEnabled(nextCtx, "methodOutlierEnabled", flag, "methodOutlierCapacitiveOnly");
+      });
     },
     setEnerginetThresholds: (thresholds) => {
-      const nextCtx = ensureContext();
-      if (!nextCtx) return false;
-      const th = thresholds && typeof thresholds === "object" ? thresholds : {};
-      const d = preselectionThresholdDefaults();
-      const t2 = Number(th.t2 != null ? th.t2 : nextCtx.state.energinetT2);
-      const t3 = Number(th.t3 != null ? th.t3 : nextCtx.state.energinetT3);
-      const t4 = Number(th.t4 != null ? th.t4 : nextCtx.state.energinetT4);
-      nextCtx.state.energinetT2 = Number.isFinite(t2) && t2 > 0 ? t2 : Number(d.t2);
-      nextCtx.state.energinetT3 = Number.isFinite(t3) && t3 > 0 ? t3 : Number(d.t3);
-      nextCtx.state.energinetT4 = Number.isFinite(t4) && t4 > 0 ? t4 : Number(d.t4);
-      recomputeSelectedCases(nextCtx);
-      nextCtx.state.importStatus = "";
-      bumpStateVersion(nextCtx.state);
-      renderPanel();
-      applyStateToPlots();
-      notifyExternalSelectionStateChanged(nextCtx, "setEnerginetThresholds.notify");
-      return true;
+      return commitSelectionApiChange("setEnerginetThresholds", (nextCtx) => {
+        const th = thresholds && typeof thresholds === "object" ? thresholds : {};
+        const d = preselectionThresholdDefaults();
+        const t2 = Number(th.t2 != null ? th.t2 : nextCtx.state.energinetT2);
+        const t3 = Number(th.t3 != null ? th.t3 : nextCtx.state.energinetT3);
+        const t4 = Number(th.t4 != null ? th.t4 : nextCtx.state.energinetT4);
+        nextCtx.state.energinetT2 = Number.isFinite(t2) && t2 > 0 ? t2 : Number(d.t2);
+        nextCtx.state.energinetT3 = Number.isFinite(t3) && t3 > 0 ? t3 : Number(d.t3);
+        nextCtx.state.energinetT4 = Number.isFinite(t4) && t4 > 0 ? t4 : Number(d.t4);
+      });
     },
     setEnerginetTopN: (rawVal) => {
-      const nextCtx = ensureContext();
-      if (!nextCtx) return false;
-      nextCtx.state.methodEnerginetTopN = normalizeTopN(rawVal);
-      recomputeSelectedCases(nextCtx);
-      nextCtx.state.importStatus = "";
-      bumpStateVersion(nextCtx.state);
-      renderPanel();
-      applyStateToPlots();
-      notifyExternalSelectionStateChanged(nextCtx, "setEnerginetTopN.notify");
-      return true;
+      return commitSelectionApiChange("setEnerginetTopN", (nextCtx) => {
+        nextCtx.state.methodEnerginetTopN = normalizeTopN(rawVal);
+      });
     },
     setIecTopN: (rawVal) => {
-      const nextCtx = ensureContext();
-      if (!nextCtx) return false;
-      nextCtx.state.methodIecTopN = normalizeTopN(rawVal);
-      recomputeSelectedCases(nextCtx);
-      nextCtx.state.importStatus = "";
-      bumpStateVersion(nextCtx.state);
-      renderPanel();
-      applyStateToPlots();
-      notifyExternalSelectionStateChanged(nextCtx, "setIecTopN.notify");
-      return true;
+      return commitSelectionApiChange("setIecTopN", (nextCtx) => {
+        nextCtx.state.methodIecTopN = normalizeTopN(rawVal);
+      });
     },
     setPeakZTopN: (rawVal) => {
-      const nextCtx = ensureContext();
-      if (!nextCtx) return false;
-      nextCtx.state.methodPeakZTopN = normalizeTopN(rawVal);
-      recomputeSelectedCases(nextCtx);
-      nextCtx.state.importStatus = "";
-      bumpStateVersion(nextCtx.state);
-      renderPanel();
-      applyStateToPlots();
-      notifyExternalSelectionStateChanged(nextCtx, "setPeakZTopN.notify");
-      return true;
+      return commitSelectionApiChange("setPeakZTopN", (nextCtx) => {
+        nextCtx.state.methodPeakZTopN = normalizeTopN(rawVal);
+      });
     },
     setPeakZExactEnabled: (flag) => {
-      const nextCtx = ensureContext();
-      if (!nextCtx) return false;
-      nextCtx.state.methodPeakZExactEnabled = flag === true;
-      recomputeSelectedCases(nextCtx);
-      nextCtx.state.importStatus = "";
-      bumpStateVersion(nextCtx.state);
-      renderPanel();
-      applyStateToPlots();
-      notifyExternalSelectionStateChanged(nextCtx, "setPeakZExactEnabled.notify");
-      return true;
+      return commitSelectionApiChange("setPeakZExactEnabled", (nextCtx) => {
+        nextCtx.state.methodPeakZExactEnabled = flag === true;
+      });
     },
     setPeakZBandEnabled: (flag) => {
-      const nextCtx = ensureContext();
-      if (!nextCtx) return false;
-      nextCtx.state.methodPeakZBandEnabled = flag === true;
-      recomputeSelectedCases(nextCtx);
-      nextCtx.state.importStatus = "";
-      bumpStateVersion(nextCtx.state);
-      renderPanel();
-      applyStateToPlots();
-      notifyExternalSelectionStateChanged(nextCtx, "setPeakZBandEnabled.notify");
-      return true;
+      return commitSelectionApiChange("setPeakZBandEnabled", (nextCtx) => {
+        nextCtx.state.methodPeakZBandEnabled = flag === true;
+      });
     },
     setPeakXTopN: (rawVal) => {
-      const nextCtx = ensureContext();
-      if (!nextCtx) return false;
-      nextCtx.state.methodPeakXTopN = normalizeTopN(rawVal);
-      recomputeSelectedCases(nextCtx);
-      nextCtx.state.importStatus = "";
-      bumpStateVersion(nextCtx.state);
-      renderPanel();
-      applyStateToPlots();
-      notifyExternalSelectionStateChanged(nextCtx, "setPeakXTopN.notify");
-      return true;
+      return commitSelectionApiChange("setPeakXTopN", (nextCtx) => {
+        nextCtx.state.methodPeakXTopN = normalizeTopN(rawVal);
+      });
     },
     setPeakXExactEnabled: (flag) => {
-      const nextCtx = ensureContext();
-      if (!nextCtx) return false;
-      nextCtx.state.methodPeakXExactEnabled = flag === true;
-      recomputeSelectedCases(nextCtx);
-      nextCtx.state.importStatus = "";
-      bumpStateVersion(nextCtx.state);
-      renderPanel();
-      applyStateToPlots();
-      notifyExternalSelectionStateChanged(nextCtx, "setPeakXExactEnabled.notify");
-      return true;
+      return commitSelectionApiChange("setPeakXExactEnabled", (nextCtx) => {
+        nextCtx.state.methodPeakXExactEnabled = flag === true;
+      });
     },
     setPeakXBandEnabled: (flag) => {
-      const nextCtx = ensureContext();
-      if (!nextCtx) return false;
-      nextCtx.state.methodPeakXBandEnabled = flag === true;
-      recomputeSelectedCases(nextCtx);
-      nextCtx.state.importStatus = "";
-      bumpStateVersion(nextCtx.state);
-      renderPanel();
-      applyStateToPlots();
-      notifyExternalSelectionStateChanged(nextCtx, "setPeakXBandEnabled.notify");
-      return true;
+      return commitSelectionApiChange("setPeakXBandEnabled", (nextCtx) => {
+        nextCtx.state.methodPeakXBandEnabled = flag === true;
+      });
     },
     setRiskTopN: (rawVal) => {
-      const nextCtx = ensureContext();
-      if (!nextCtx) return false;
-      nextCtx.state.methodRiskTopN = normalizeTopN(rawVal);
-      recomputeSelectedCases(nextCtx);
-      nextCtx.state.importStatus = "";
-      bumpStateVersion(nextCtx.state);
-      renderPanel();
-      applyStateToPlots();
-      notifyExternalSelectionStateChanged(nextCtx, "setRiskTopN.notify");
-      return true;
+      return commitSelectionApiChange("setRiskTopN", (nextCtx) => {
+        nextCtx.state.methodRiskTopN = normalizeTopN(rawVal);
+      });
     },
     setOutlierTopN: (rawVal) => {
-      const nextCtx = ensureContext();
-      if (!nextCtx) return false;
-      nextCtx.state.methodOutlierTopN = normalizeTopN(rawVal);
-      recomputeSelectedCases(nextCtx);
-      nextCtx.state.importStatus = "";
-      bumpStateVersion(nextCtx.state);
-      renderPanel();
-      applyStateToPlots();
-      notifyExternalSelectionStateChanged(nextCtx, "setOutlierTopN.notify");
-      return true;
+      return commitSelectionApiChange("setOutlierTopN", (nextCtx) => {
+        nextCtx.state.methodOutlierTopN = normalizeTopN(rawVal);
+      });
     },
     setIecCapacitiveOnly: (flag) => {
-      const nextCtx = ensureContext();
-      if (!nextCtx) return false;
-      if (!nextCtx.state.methodIecEnabled) {
-        nextCtx.state.methodIecCapacitiveOnly = false;
-      } else {
-        nextCtx.state.methodIecCapacitiveOnly = flag === true;
-      }
-      recomputeSelectedCases(nextCtx);
-      nextCtx.state.importStatus = "";
-      bumpStateVersion(nextCtx.state);
-      renderPanel();
-      applyStateToPlots();
-      notifyExternalSelectionStateChanged(nextCtx, "setIecCapacitiveOnly.notify");
-      return true;
+      return commitSelectionApiChange("setIecCapacitiveOnly", (nextCtx) => {
+        setCapacitiveOnly(nextCtx, "methodIecEnabled", "methodIecCapacitiveOnly", flag);
+      });
     },
     setPeakZCapacitiveOnly: (flag) => {
-      const nextCtx = ensureContext();
-      if (!nextCtx) return false;
-      nextCtx.state.methodPeakZCapacitiveOnly = nextCtx.state.methodPeakZEnabled ? flag === true : false;
-      recomputeSelectedCases(nextCtx);
-      nextCtx.state.importStatus = "";
-      bumpStateVersion(nextCtx.state);
-      renderPanel();
-      applyStateToPlots();
-      notifyExternalSelectionStateChanged(nextCtx, "setPeakZCapacitiveOnly.notify");
-      return true;
+      return commitSelectionApiChange("setPeakZCapacitiveOnly", (nextCtx) => {
+        setCapacitiveOnly(nextCtx, "methodPeakZEnabled", "methodPeakZCapacitiveOnly", flag);
+      });
     },
     setPeakXCapacitiveOnly: (flag) => {
-      const nextCtx = ensureContext();
-      if (!nextCtx) return false;
-      nextCtx.state.methodPeakXCapacitiveOnly = nextCtx.state.methodPeakXEnabled ? flag === true : false;
-      recomputeSelectedCases(nextCtx);
-      nextCtx.state.importStatus = "";
-      bumpStateVersion(nextCtx.state);
-      renderPanel();
-      applyStateToPlots();
-      notifyExternalSelectionStateChanged(nextCtx, "setPeakXCapacitiveOnly.notify");
-      return true;
+      return commitSelectionApiChange("setPeakXCapacitiveOnly", (nextCtx) => {
+        setCapacitiveOnly(nextCtx, "methodPeakXEnabled", "methodPeakXCapacitiveOnly", flag);
+      });
     },
     setRiskCapacitiveOnly: (flag) => {
-      const nextCtx = ensureContext();
-      if (!nextCtx) return false;
-      nextCtx.state.methodRiskCapacitiveOnly = nextCtx.state.methodRiskEnabled ? flag === true : false;
-      recomputeSelectedCases(nextCtx);
-      nextCtx.state.importStatus = "";
-      bumpStateVersion(nextCtx.state);
-      renderPanel();
-      applyStateToPlots();
-      notifyExternalSelectionStateChanged(nextCtx, "setRiskCapacitiveOnly.notify");
-      return true;
+      return commitSelectionApiChange("setRiskCapacitiveOnly", (nextCtx) => {
+        setCapacitiveOnly(nextCtx, "methodRiskEnabled", "methodRiskCapacitiveOnly", flag);
+      });
     },
     setOutlierCapacitiveOnly: (flag) => {
-      const nextCtx = ensureContext();
-      if (!nextCtx) return false;
-      nextCtx.state.methodOutlierCapacitiveOnly = nextCtx.state.methodOutlierEnabled ? flag === true : false;
-      recomputeSelectedCases(nextCtx);
-      nextCtx.state.importStatus = "";
-      bumpStateVersion(nextCtx.state);
-      renderPanel();
-      applyStateToPlots();
-      notifyExternalSelectionStateChanged(nextCtx, "setOutlierCapacitiveOnly.notify");
-      return true;
+      return commitSelectionApiChange("setOutlierCapacitiveOnly", (nextCtx) => {
+        setCapacitiveOnly(nextCtx, "methodOutlierEnabled", "methodOutlierCapacitiveOnly", flag);
+      });
     },
     stepRxFrequency: (delta) => {
       const nextCtx = ensureContext();
@@ -583,25 +428,8 @@ function registerExternalSelectionApi(ctx) {
     clearSelection: () => {
       const nextCtx = ensureContext();
       if (!nextCtx) return false;
-      nextCtx.state.manualSelectedCases = new Set();
-      nextCtx.state.methodExcludedCases = new Set();
-      nextCtx.state.methodEnerginetEnabled = false;
-      nextCtx.state.methodIecEnabled = false;
-      nextCtx.state.methodIecCapacitiveOnly = false;
-      nextCtx.state.methodPeakZEnabled = false;
-      nextCtx.state.methodPeakZCapacitiveOnly = false;
-      nextCtx.state.methodPeakZExactEnabled = true;
-      nextCtx.state.methodPeakZBandEnabled = false;
-      nextCtx.state.methodPeakXEnabled = false;
-      nextCtx.state.methodPeakXCapacitiveOnly = false;
-      nextCtx.state.methodPeakXExactEnabled = true;
-      nextCtx.state.methodPeakXBandEnabled = false;
-      nextCtx.state.methodRiskEnabled = false;
-      nextCtx.state.methodRiskCapacitiveOnly = false;
-      nextCtx.state.methodOutlierEnabled = false;
-      nextCtx.state.methodOutlierCapacitiveOnly = false;
+      resetSelectionState(nextCtx.state);
       recomputeSelectedCases(nextCtx);
-      nextCtx.state.importStatus = "";
       bumpStateVersion(nextCtx.state);
       renderPanel();
       applyStateToPlots();

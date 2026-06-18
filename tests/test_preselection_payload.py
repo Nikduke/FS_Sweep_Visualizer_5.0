@@ -2,9 +2,10 @@ import unittest
 
 import numpy as np
 
-from fs_sweep_app_spline import SweepSheet, _compact_preselection_payload
+from fs_sweep_app_spline import SweepSheet
 from preselection_shortlist import (
     build_preselection_payload_safe,
+    _compact_preselection_payload,
     _compute_exact_peak_x_ranking,
     _compute_peak_x_ranking,
     _ranked_rows_payload,

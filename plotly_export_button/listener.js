@@ -321,6 +321,7 @@ function render() {
   if (!root) return;
   const buttonLabel = asString("button_label", "Export");
   const safeButtonLabel = escapeHtml(buttonLabel);
+  const safeHeaderTitle = escapeHtml(asString("header_title", ""));
   root.innerHTML = `
     <style>
       html, body {
@@ -331,13 +332,27 @@ function render() {
       }
       #exp-root {
         width: 100%;
-        height: 28px;
+        height: 30px;
         display: flex;
         align-items: center;
-        justify-content: flex-end;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      #exp-title {
+        min-width: 0;
+        flex: 1 1 auto;
+        color: #2b3445;
+        font-family: "Open Sans", verdana, arial, sans-serif;
+        font-size: 16px;
+        font-weight: 700;
+        line-height: 1.2;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
       #exp-btn {
         width: auto;
+        flex: 0 0 auto;
         min-width: 86px;
         min-height: 24px;
         padding: 2px 9px;
@@ -378,6 +393,7 @@ function render() {
       }
     </style>
     <div id="exp-root">
+      ${safeHeaderTitle ? `<div id="exp-title" title="${safeHeaderTitle}">${safeHeaderTitle}</div>` : ""}
       <button id="exp-btn" type="button" aria-label="${safeButtonLabel}">${safeButtonLabel}</button>
       <div id="exp-plot"></div>
     </div>
@@ -396,7 +412,7 @@ function render() {
       }
     });
   }
-  sendToStreamlit("streamlit:setFrameHeight", { height: 28 });
+  sendToStreamlit("streamlit:setFrameHeight", { height: 30 });
 }
 
 async function doExport() {

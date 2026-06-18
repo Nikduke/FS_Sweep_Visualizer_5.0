@@ -204,11 +204,11 @@ function createDefaultState(partOptions, colorByOptions, colorByDefault, showOnl
     methodIecCapacitiveOnly: false,
     methodPeakZEnabled: false,
     methodPeakZCapacitiveOnly: false,
-    methodPeakZExactEnabled: true,
+    methodPeakZExactEnabled: false,
     methodPeakZBandEnabled: false,
     methodPeakXEnabled: false,
     methodPeakXCapacitiveOnly: false,
-    methodPeakXExactEnabled: true,
+    methodPeakXExactEnabled: false,
     methodPeakXBandEnabled: false,
     methodRiskEnabled: false,
     methodRiskCapacitiveOnly: false,
@@ -326,11 +326,11 @@ function sanitizeState(state, casesMeta, partOptions, colorByOptions, colorByDef
   next.methodIecCapacitiveOnly = Boolean(next.methodIecCapacitiveOnly);
   next.methodPeakZEnabled = Boolean(next.methodPeakZEnabled);
   next.methodPeakZCapacitiveOnly = Boolean(next.methodPeakZCapacitiveOnly);
-  next.methodPeakZExactEnabled = next.methodPeakZExactEnabled == null ? true : Boolean(next.methodPeakZExactEnabled);
+  next.methodPeakZExactEnabled = Boolean(next.methodPeakZExactEnabled);
   next.methodPeakZBandEnabled = Boolean(next.methodPeakZBandEnabled);
   next.methodPeakXEnabled = Boolean(next.methodPeakXEnabled);
   next.methodPeakXCapacitiveOnly = Boolean(next.methodPeakXCapacitiveOnly);
-  next.methodPeakXExactEnabled = next.methodPeakXExactEnabled == null ? true : Boolean(next.methodPeakXExactEnabled);
+  next.methodPeakXExactEnabled = Boolean(next.methodPeakXExactEnabled);
   next.methodPeakXBandEnabled = Boolean(next.methodPeakXBandEnabled);
   next.methodRiskEnabled = Boolean(next.methodRiskEnabled);
   next.methodRiskCapacitiveOnly = Boolean(next.methodRiskCapacitiveOnly);
@@ -368,6 +368,54 @@ function sanitizeState(state, casesMeta, partOptions, colorByOptions, colorByDef
   return next;
 }
 
+function resetSelectionState(state) {
+  if (!state || typeof state !== "object") return;
+  state.manualSelectedCases = new Set();
+  state.methodExcludedCases = new Set();
+  state.methodEnerginetEnabled = false;
+  state.methodIecEnabled = false;
+  state.methodIecCapacitiveOnly = false;
+  state.methodPeakZEnabled = false;
+  state.methodPeakZCapacitiveOnly = false;
+  state.methodPeakZExactEnabled = false;
+  state.methodPeakZBandEnabled = false;
+  state.methodPeakXEnabled = false;
+  state.methodPeakXCapacitiveOnly = false;
+  state.methodPeakXExactEnabled = false;
+  state.methodPeakXBandEnabled = false;
+  state.methodRiskEnabled = false;
+  state.methodRiskCapacitiveOnly = false;
+  state.methodOutlierEnabled = false;
+  state.methodOutlierCapacitiveOnly = false;
+  state.methodEnerginetCasesRaw = new Set();
+  state.methodIecCasesRaw = new Set();
+  state.methodIecCasesRawAll = new Set();
+  state.methodIecCasesRawCapacitive = new Set();
+  state.methodPeakZCasesRaw = new Set();
+  state.methodPeakZCasesRawAll = new Set();
+  state.methodPeakZCasesRawCapacitive = new Set();
+  state.methodPeakZExactCasesRawAll = new Set();
+  state.methodPeakZExactCasesRawCapacitive = new Set();
+  state.methodPeakZBandCasesRawAll = new Set();
+  state.methodPeakZBandCasesRawCapacitive = new Set();
+  state.methodPeakXCasesRaw = new Set();
+  state.methodPeakXCasesRawAll = new Set();
+  state.methodPeakXCasesRawCapacitive = new Set();
+  state.methodPeakXExactCasesRawAll = new Set();
+  state.methodPeakXExactCasesRawCapacitive = new Set();
+  state.methodPeakXBandCasesRawAll = new Set();
+  state.methodPeakXBandCasesRawCapacitive = new Set();
+  state.methodRiskCasesRaw = new Set();
+  state.methodRiskCasesRawAll = new Set();
+  state.methodRiskCasesRawCapacitive = new Set();
+  state.methodOutlierCasesRaw = new Set();
+  state.methodOutlierCasesRawAll = new Set();
+  state.methodOutlierCasesRawCapacitive = new Set();
+  state.selectedCases = new Set();
+  state.__methodRawCacheKey = "";
+  state.importStatus = "";
+}
+
 function ensureContext() {
   if (!latestArgs) return null;
   const dataId = String(latestArgs.data_id || "");
@@ -402,52 +450,7 @@ function ensureContext() {
 
   const prevSelReset = Number(state && state.__selectionResetToken != null ? state.__selectionResetToken : 0);
   if (prevSelReset !== selectionResetToken) {
-    state.manualSelectedCases = new Set();
-    state.methodExcludedCases = new Set();
-    state.methodEnerginetEnabled = false;
-    state.methodIecEnabled = false;
-    state.methodIecCapacitiveOnly = false;
-    state.methodPeakZEnabled = false;
-    state.methodPeakZCapacitiveOnly = false;
-    state.methodPeakZExactEnabled = true;
-    state.methodPeakZBandEnabled = false;
-    state.methodPeakXEnabled = false;
-    state.methodPeakXCapacitiveOnly = false;
-    state.methodPeakXExactEnabled = true;
-    state.methodPeakXBandEnabled = false;
-    state.methodRiskEnabled = false;
-    state.methodRiskCapacitiveOnly = false;
-    state.methodOutlierEnabled = false;
-    state.methodOutlierCapacitiveOnly = false;
-    state.methodEnerginetCasesRaw = new Set();
-    state.methodIecCasesRaw = new Set();
-    state.methodIecCasesRawAll = new Set();
-    state.methodIecCasesRawCapacitive = new Set();
-    state.methodPeakZCasesRaw = new Set();
-    state.methodPeakZCasesRawAll = new Set();
-    state.methodPeakZCasesRawCapacitive = new Set();
-    state.methodPeakZExactCasesRawAll = new Set();
-    state.methodPeakZExactCasesRawCapacitive = new Set();
-    state.methodPeakZBandCasesRawAll = new Set();
-    state.methodPeakZBandCasesRawCapacitive = new Set();
-    state.methodPeakXCasesRaw = new Set();
-    state.methodPeakXCasesRawAll = new Set();
-    state.methodPeakXCasesRawCapacitive = new Set();
-    state.methodPeakXExactCasesRawAll = new Set();
-    state.methodPeakXExactCasesRawCapacitive = new Set();
-    state.methodPeakXBandCasesRawAll = new Set();
-    state.methodPeakXBandCasesRawCapacitive = new Set();
-    state.methodRiskCasesRaw = new Set();
-    state.methodRiskCasesRawAll = new Set();
-    state.methodRiskCasesRawCapacitive = new Set();
-    state.methodOutlierCasesRaw = new Set();
-    state.methodOutlierCasesRawAll = new Set();
-    state.methodOutlierCasesRawCapacitive = new Set();
-    state.selectedCases = new Set();
-    // Force method candidates recomputation after reset-trigger reruns
-    // (e.g. spline toggle), otherwise stale cache key can keep raw sets empty.
-    state.__methodRawCacheKey = "";
-    state.importStatus = "";
+    resetSelectionState(state);
     bumpStateVersion(state);
   }
   if (Math.abs(Number(state.baseFrequencyHz || 0) - Number(serverBase)) > 1e-9) {
@@ -490,21 +493,21 @@ function getColorMap(ctx) {
   const all = latestArgs && latestArgs.color_maps && typeof latestArgs.color_maps === "object" ? latestArgs.color_maps : {};
   const key = String(ctx.state.colorBy || "Auto");
   const m = all[key];
-  if (Array.isArray(m)) {
-    const cacheKey = `${key}|${m.length}|${ctx.casesMeta ? ctx.casesMeta.length : 0}`;
-    if (!ctx.__colorMapCache || ctx.__colorMapCacheKey !== cacheKey) {
-      const built = {};
-      const rows = Array.isArray(ctx.casesMeta) ? ctx.casesMeta : [];
-      for (let i = 0; i < rows.length; i++) {
-        const cid = String(rows[i] && rows[i].case_id != null ? rows[i].case_id : "");
-        if (cid) built[cid] = String(m[i] || "#1f77b4");
+  if (!Array.isArray(m)) return {};
+  const cacheKey = `${key}|${m.length}|${ctx.casesMeta ? ctx.casesMeta.length : 0}`;
+  if (!ctx.__colorMapCache || ctx.__colorMapCacheKey !== cacheKey) {
+    const built = {};
+    const rows = Array.isArray(ctx.casesMeta) ? ctx.casesMeta : [];
+    for (let i = 0; i < rows.length; i++) {
+      const cid = String(rows[i] && rows[i].case_id != null ? rows[i].case_id : "");
+      if (cid) {
+        built[cid] = String(m[i] || "#1f77b4");
       }
-      ctx.__colorMapCache = built;
-      ctx.__colorMapCacheKey = cacheKey;
     }
-    return ctx.__colorMapCache && typeof ctx.__colorMapCache === "object" ? ctx.__colorMapCache : {};
+    ctx.__colorMapCache = built;
+    ctx.__colorMapCacheKey = cacheKey;
   }
-  return m && typeof m === "object" ? m : {};
+  return ctx.__colorMapCache && typeof ctx.__colorMapCache === "object" ? ctx.__colorMapCache : {};
 }
 
 function colorForCase(ctx, caseId) {
@@ -2582,24 +2585,7 @@ function bindPanelEvents(ctx, rows) {
   const clearList = document.getElementById("fs-clear-list");
   if (clearList) {
     clearList.addEventListener("click", () => {
-      ctx.state.manualSelectedCases = new Set();
-      ctx.state.methodExcludedCases = new Set();
-      ctx.state.methodEnerginetEnabled = false;
-      ctx.state.methodIecEnabled = false;
-      ctx.state.methodIecCapacitiveOnly = false;
-      ctx.state.methodPeakZEnabled = false;
-      ctx.state.methodPeakZCapacitiveOnly = false;
-      ctx.state.methodPeakZExactEnabled = true;
-      ctx.state.methodPeakZBandEnabled = false;
-      ctx.state.methodPeakXEnabled = false;
-      ctx.state.methodPeakXCapacitiveOnly = false;
-      ctx.state.methodPeakXExactEnabled = true;
-      ctx.state.methodPeakXBandEnabled = false;
-      ctx.state.methodRiskEnabled = false;
-      ctx.state.methodRiskCapacitiveOnly = false;
-      ctx.state.methodOutlierEnabled = false;
-      ctx.state.methodOutlierCapacitiveOnly = false;
-      ctx.state.importStatus = "";
+      resetSelectionState(ctx.state);
       applyPanelUiChange(ctx);
     });
   }

@@ -16,7 +16,7 @@ Why it exists:
 
 Input contract:
 - Python passes one nested `export_contract` object for layout/export sizing.
-- JS reads `export_contract` first and keeps legacy top-level arg fallback for compatibility.
+- JS reads `export_contract`.
 - Contract covers plot index, scale, plot height, legend width, margins, font metrics, legend-row geometry, and fallback color.
 
 Current status:
