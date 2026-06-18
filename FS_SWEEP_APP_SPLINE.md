@@ -55,6 +55,8 @@ Core design:
 - The custom export button is shown above each enabled plot as `Export PNG`.
 - This custom export exists because Plotly's default modebar export can cut long legends.
 - Python passes export sizing/layout values as one `export_contract` object.
+- `Fixed size` is checked by default and exports as if Display Settings used width 1000 and plot-area height 400, with scale 4; unchecking it uses the current visible plot size and default export scale.
+- `R vs X` scatter also uses the Display Settings width; its height remains `plot area height * 1.5`.
 - The export component uses the currently rendered Plotly DOM state, so selected-only visibility/legend styling is reflected in exported PNGs.
 - Scatter export builds a manual legend from currently selected visible cases; it first uses the shared selection API, then falls back to the rendered selected marker symbols.
 - Export component keys are stable by plot filename/label to reduce remount flicker while plot index and layout are passed through the current contract args.

@@ -16,6 +16,7 @@ function sendToStreamlit(type, payload) {
 }
 
 let latestArgs = {};
+let fixedExportSize = true;
 
 function debugEnabled() {
   try {
@@ -76,7 +77,10 @@ function exportArgs() {
   const fallbackLegendFontSize = Math.max(8, Math.round(asNumber("fallback_legend_font_size", 14)));
   return {
     scale: Math.max(1, Math.round(asNumber("scale", 1))),
+    fixedScale: Math.max(1, Math.round(asNumber("fixed_scale", 4))),
     plotHeight: Math.max(1, Math.round(asNumber("plot_height", 400))),
+    fixedWidth: Math.max(1, Math.round(asNumber("fixed_width_px", 1000))),
+    fixedHeight: Math.max(1, Math.round(asNumber("fixed_height_px", 400))),
     topMargin: Math.round(asNumber("top_margin_px", 40)),
     bottomAxis: Math.round(asNumber("bottom_axis_px", 60)),
     legendPad: Math.round(asNumber("legend_padding_px", 18)),
@@ -332,7 +336,7 @@ function render() {
       }
       #exp-root {
         width: 100%;
-        height: 30px;
+        height: 32px;
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -384,6 +388,32 @@ function render() {
         border-color: #d5deeb;
         cursor: wait;
       }
+      #exp-actions {
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+      #exp-fixed {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        color: #4c566a;
+        font-family: "Open Sans", verdana, arial, sans-serif;
+        font-size: 11px;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      #exp-fixed-size {
+        width: 14px;
+        height: 14px;
+        margin: 0;
+        accent-color: #1f77d0;
+      }
+      #exp-fixed-size:focus-visible {
+        outline: 2px solid #2f6fda;
+        outline-offset: 2px;
+      }
       #exp-plot {
         width: 1px;
         height: 1px;
@@ -394,10 +424,22 @@ function render() {
     </style>
     <div id="exp-root">
       ${safeHeaderTitle ? `<div id="exp-title" title="${safeHeaderTitle}">${safeHeaderTitle}</div>` : ""}
-      <button id="exp-btn" type="button" aria-label="${safeButtonLabel}">${safeButtonLabel}</button>
+      <div id="exp-actions">
+        <button id="exp-btn" type="button" aria-label="${safeButtonLabel}">${safeButtonLabel}</button>
+        <label id="exp-fixed" title="When off, export uses current visible plot size.">
+          <input id="exp-fixed-size" type="checkbox" ${fixedExportSize ? "checked" : ""} />
+          Fixed size
+        </label>
+      </div>
       <div id="exp-plot"></div>
     </div>
   `;
+  const fixedInput = document.getElementById("exp-fixed-size");
+  if (fixedInput) {
+    fixedInput.addEventListener("change", () => {
+      fixedExportSize = Boolean(fixedInput.checked);
+    });
+  }
   const btn = document.getElementById("exp-btn");
   if (btn) {
     btn.addEventListener("click", async () => {
@@ -412,7 +454,7 @@ function render() {
       }
     });
   }
-  sendToStreamlit("streamlit:setFrameHeight", { height: 30 });
+  sendToStreamlit("streamlit:setFrameHeight", { height: 32 });
 }
 
 async function doExport() {
@@ -425,7 +467,7 @@ async function doExport() {
     const gd = plotCtx.gd;
 
     const r = gd.getBoundingClientRect();
-    const widthPx = Math.floor(r.width || 0);
+    const widthPx = fixedExportSize ? cfg.fixedWidth : Math.floor(r.width || 0);
     if (!widthPx) return;
 
     const legendFontSize = (
@@ -455,8 +497,9 @@ async function doExport() {
     const cols = Math.max(1, Math.floor(usableW / entryPx));
     const rows = Math.ceil(legendItems.length / cols);
     const legendH = (rows * legendRowH) + cfg.legendPad + Math.ceil(cfg.tailFontMult * legendFontSize);
-    const newHeight = cfg.plotHeight + cfg.topMargin + cfg.bottomAxis + legendH;
     const newMarginB = cfg.bottomAxis + legendH;
+    const plotHeightPx = fixedExportSize ? cfg.fixedHeight : cfg.plotHeight;
+    const newHeight = plotHeightPx + cfg.topMargin + newMarginB;
 
     const container = document.getElementById("exp-plot");
     if (!container) return;
@@ -490,7 +533,7 @@ async function doExport() {
       const col = i % cols;
       const x0 = (col * colW + xPadPx) / usableW;
       const x1 = x0 + (sampleLinePx / usableW);
-      const y = -(cfg.bottomAxis + cfg.legendPad + (row + cfg.rowYOffset) * legendRowH) / Math.max(1, cfg.plotHeight);
+      const y = -(cfg.bottomAxis + cfg.legendPad + (row + cfg.rowYOffset) * legendRowH) / Math.max(1, plotHeightPx);
       shp.push({
         type: "line",
         xref: "paper",
@@ -521,7 +564,7 @@ async function doExport() {
       format: "png",
       width: widthPx,
       height: newHeight,
-      scale: cfg.scale,
+      scale: fixedExportSize ? cfg.fixedScale : cfg.scale,
     });
     const a = document.createElement("a");
     a.href = url;

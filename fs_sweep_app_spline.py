@@ -50,7 +50,7 @@ STYLE = {
 
 # ---- Layout (web view) ----
 # NOTE: Keep the bottom legend layout; axis overlap is handled by title standoff + margins.
-DEFAULT_FIGURE_WIDTH_PX = 1400
+DEFAULT_FIGURE_WIDTH_PX = 1000
 TOP_MARGIN_PX = 40
 BOTTOM_AXIS_PX = 60
 LEFT_MARGIN_PX = 60
@@ -83,6 +83,9 @@ LINE_X_AXIS_UNIT = "hz"
 
 # ---- Export ----
 EXPORT_IMAGE_SCALE = 4  # modebar + full-legend export
+EXPORT_FIXED_IMAGE_SCALE = 4
+EXPORT_FIXED_WIDTH_PX = 1000
+EXPORT_FIXED_HEIGHT_PX = 400
 EXPORT_FALLBACK_COLOR = "#444"
 
 # Full-legend export (JS layout heuristics)
@@ -153,7 +156,7 @@ _plotly_selection_bridge = components.declare_component(
 )
 
 _plotly_export_button = components.declare_component(
-    "plotly_export_button_v3",
+    "plotly_export_button_v9",
     path=str(os.path.join(os.path.dirname(__file__), "plotly_export_button")),
 )
 
@@ -1290,17 +1293,24 @@ def build_rx_scatter_animated(
     seq_label: str,
     case_colors: Dict[str, str],
     plot_height: int,
+    use_auto_width: bool,
+    figure_width_px: int,
     axis_cases: Optional[List[str]] = None,
 ) -> Tuple[go.Figure, int]:
     fig = go.Figure()
+    scatter_height = max(420, int(round(float(plot_height) * float(RX_SCATTER_HEIGHT_FACTOR))))
     if df_r is None or df_x is None or not cases:
-        fig.update_layout(height=500)
+        fig.update_layout(height=scatter_height)
+        if not use_auto_width:
+            fig.update_layout(width=int(figure_width_px), autosize=False)
         return fig, 0
 
     fr, r_map = prepare_sheet_arrays(df_r)
     fx, x_map = prepare_sheet_arrays(df_x)
     if fr.size == 0 or fx.size == 0:
-        fig.update_layout(height=500)
+        fig.update_layout(height=scatter_height)
+        if not use_auto_width:
+            fig.update_layout(width=int(figure_width_px), autosize=False)
         return fig, 0
 
     freq_candidates = sorted(
@@ -1311,7 +1321,9 @@ def build_rx_scatter_animated(
         }
     )
     if not freq_candidates:
-        fig.update_layout(height=500)
+        fig.update_layout(height=scatter_height)
+        if not use_auto_width:
+            fig.update_layout(width=int(figure_width_px), autosize=False)
         return fig, 0
     init_idx = int(min(len(freq_candidates) - 1, max(0, len(freq_candidates) // 2)))
     freq_candidates_arr = np.asarray(freq_candidates, dtype=float)
@@ -1332,7 +1344,9 @@ def build_rx_scatter_animated(
         for case_id, display_name in zip(point_case_ids, point_display_names)
     ]
     if not case_arrays:
-        fig.update_layout(height=500)
+        fig.update_layout(height=scatter_height)
+        if not use_auto_width:
+            fig.update_layout(width=int(figure_width_px), autosize=False)
         return fig, 0
 
     axis_case_list = list(axis_cases) if axis_cases is not None else list(cases)
@@ -1415,7 +1429,7 @@ def build_rx_scatter_animated(
                 "seq_label": str(seq_label),
             }
         },
-        height=max(420, int(round(float(plot_height) * float(RX_SCATTER_HEIGHT_FACTOR)))),
+        height=scatter_height,
         margin=dict(
             l=LEFT_MARGIN_PX,
             r=RIGHT_MARGIN_PX,
@@ -1437,6 +1451,8 @@ def build_rx_scatter_animated(
             )
         ],
     )
+    if not use_auto_width:
+        fig.update_layout(width=int(figure_width_px), autosize=False)
 
     if (
         r_global_min is not None and r_global_max is not None and np.isfinite(r_global_min) and np.isfinite(r_global_max)
@@ -1478,11 +1494,15 @@ def _render_client_png_download(
     selected_case_legend: bool = False,
     header_title: str = "",
 ):
+    fixed_height_px = int(max(EXPORT_FIXED_HEIGHT_PX, int(plot_height))) if bool(selected_case_legend) else int(EXPORT_FIXED_HEIGHT_PX)
     export_contract = {
         "filename": str(filename),
         "button_label": str(button_label),
         "scale": int(scale),
+        "fixed_scale": int(EXPORT_FIXED_IMAGE_SCALE),
         "plot_height": int(plot_height),
+        "fixed_width_px": int(EXPORT_FIXED_WIDTH_PX),
+        "fixed_height_px": int(fixed_height_px),
         "legend_entrywidth": int(legend_entrywidth),
         "plot_index": int(plot_index),
         "state_key": str(state_key),
@@ -2282,6 +2302,8 @@ def _get_or_build_cached_rx_scatter_figure(
     cases_sig: str,
     colors_sig: str,
     plot_height: int,
+    render_auto_width: bool,
+    figure_width_px: int,
 ) -> Tuple[go.Figure, int]:
     rx_filter_sig_key, rx_fig_sig_key, rx_fig_cache_key, rx_fig_steps_key = _rx_scatter_cache_keys(
         data_id=data_id,
@@ -2301,6 +2323,8 @@ def _get_or_build_cached_rx_scatter_figure(
         "seq": str(seq_label),
         "layout": "explicit_scatter_margins_v1",
         "plot_h": int(plot_height),
+        "auto_w": bool(render_auto_width),
+        "fig_w": int(figure_width_px),
         "cases_sig": str(cases_sig),
         "axis_cases_sig": _stable_string_list_sig(list(location_cases_for_axes)),
         "colors_sig": str(colors_sig),
@@ -2317,6 +2341,8 @@ def _get_or_build_cached_rx_scatter_figure(
             seq_label=seq_label,
             case_colors=case_colors,
             plot_height=int(plot_height),
+            use_auto_width=bool(render_auto_width),
+            figure_width_px=int(figure_width_px),
             axis_cases=list(location_cases_for_axes),
         )
         st.session_state[rx_fig_sig_key] = rx_sig
@@ -2610,6 +2636,8 @@ def _render_rx_scatter_plot(
         cases_sig=str(ctx.cases_sig),
         colors_sig=str(ctx.scatter_colors_sig),
         plot_height=int(ctx.plot_height),
+        render_auto_width=bool(ctx.render_auto_width),
+        figure_width_px=int(ctx.figure_width_px),
     )
     st.plotly_chart(
         rx_fig,

@@ -17,11 +17,12 @@ Why it exists:
 Input contract:
 - Python passes one nested `export_contract` object for layout/export sizing.
 - JS reads `export_contract`.
-- Contract covers plot index, scale, plot height, legend width, margins, font metrics, legend-row geometry, and fallback color.
+- Contract covers plot index, scale, fixed export width/plot-height/scale, plot height, legend width, margins, font metrics, legend-row geometry, and fallback color.
 
 Current status:
 - export is positioned above the plot body, not in the sidebar `Show plots` section
 - button label is `Export PNG`
+- `Fixed size` is enabled by default and uses fixed width, fixed plot-area height, and fixed scale; disabling it exports at the current visible plot width/height behavior
 - button text changes to `Exporting PNG...` while browser-side export runs
 - `R vs X` PNG export omits the web-only frequency slider and uses the manual selected-case legend instead
 - continues to export from the currently rendered plot state
