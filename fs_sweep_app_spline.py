@@ -151,7 +151,7 @@ SELECTION_MODE_TICK_FONT_SIZE_PX = 12
 SELECTION_MODE_LINE_MARGIN_BOTTOM_PX = 72
 
 _plotly_selection_bridge = components.declare_component(
-    "plotly_selection_bridge_v19",
+    "plotly_selection_bridge_v22",
     path=str(os.path.join(os.path.dirname(__file__), "plotly_selection_bridge")),
 )
 
@@ -161,7 +161,7 @@ _plotly_export_button = components.declare_component(
 )
 
 _plotly_rx_toolbar = components.declare_component(
-    "plotly_rx_toolbar_v5",
+    "plotly_rx_toolbar_v6",
     path=str(os.path.join(os.path.dirname(__file__), "plotly_rx_toolbar")),
 )
 
@@ -217,11 +217,9 @@ class AppRenderContext:
     color_by_options: List[str]
     color_maps: Dict[str, List[str]]
     auto_color_part_label: str
-    case_colors_line: Dict[str, str]
-    case_colors_scatter: Dict[str, str]
+    case_colors: Dict[str, str]
     cases_sig: str
-    line_colors_sig: str
-    scatter_colors_sig: str
+    colors_sig: str
     interactive_controls_area: object
 
 
@@ -647,8 +645,6 @@ def _find_frequency_column(df: pd.DataFrame) -> Optional[object]:
             return c
         if str(c).strip().lower() in ["frequency (hz)", "frequency"]:
             return c
-    if "Frequency (Hz)" in df.columns:
-        return "Frequency (Hz)"
     return None
 
 
@@ -1295,7 +1291,6 @@ def build_rx_scatter_animated(
     plot_height: int,
     use_auto_width: bool,
     figure_width_px: int,
-    axis_cases: Optional[List[str]] = None,
 ) -> Tuple[go.Figure, int]:
     fig = go.Figure()
     scatter_height = max(420, int(round(float(plot_height) * float(RX_SCATTER_HEIGHT_FACTOR))))
@@ -1349,7 +1344,7 @@ def build_rx_scatter_animated(
             fig.update_layout(width=int(figure_width_px), autosize=False)
         return fig, 0
 
-    axis_case_list = list(axis_cases) if axis_cases is not None else list(cases)
+    axis_case_list = list(cases)
     axis_r_arrays = [np.asarray(r_map[str(case)]) for case in axis_case_list if str(case) in r_map]
     axis_x_arrays = [np.asarray(x_map[str(case)]) for case in axis_case_list if str(case) in x_map]
     r_global_min = r_global_max = x_global_min = x_global_max = None
@@ -1871,11 +1866,9 @@ def _prepare_render_context(default_path: str) -> AppRenderContext:
     cases_meta, part_labels = build_js_case_metadata(cases_tuple)
     color_by_options, color_maps, auto_color_part_label = build_js_color_maps(cases_tuple, len(part_labels))
     default_color_map = _case_color_map_from_array(location_cases, list(color_maps.get("Auto", [])))
-    case_colors_line = {c: str(default_color_map.get(c, "#1f77b4")) for c in location_cases}
-    case_colors_scatter = {c: str(default_color_map.get(c, "#1f77b4")) for c in location_cases}
+    case_colors = {c: str(default_color_map.get(c, "#1f77b4")) for c in location_cases}
     cases_sig = _stable_string_list_sig(list(location_cases))
-    line_colors_sig = _stable_case_color_sig(list(location_cases), case_colors_line)
-    scatter_colors_sig = _stable_case_color_sig(list(location_cases), case_colors_scatter)
+    colors_sig = _stable_case_color_sig(list(location_cases), case_colors)
 
     return AppRenderContext(
         data_id=str(data_id),
@@ -1905,11 +1898,9 @@ def _prepare_render_context(default_path: str) -> AppRenderContext:
         color_by_options=list(color_by_options),
         color_maps=dict(color_maps),
         auto_color_part_label=str(auto_color_part_label),
-        case_colors_line=dict(case_colors_line),
-        case_colors_scatter=dict(case_colors_scatter),
+        case_colors=dict(case_colors),
         cases_sig=str(cases_sig),
-        line_colors_sig=str(line_colors_sig),
-        scatter_colors_sig=str(scatter_colors_sig),
+        colors_sig=str(colors_sig),
         interactive_controls_area=interactive_controls_area,
     )
 
@@ -2318,7 +2309,6 @@ def _get_or_build_cached_rx_scatter_figure(
         st.session_state.pop(rx_fig_cache_key, None)
         st.session_state.pop(rx_fig_steps_key, None)
 
-    location_cases_for_axes = list(location_cases)
     rx_sig_payload = {
         "seq": str(seq_label),
         "layout": "explicit_scatter_margins_v1",
@@ -2326,7 +2316,6 @@ def _get_or_build_cached_rx_scatter_figure(
         "auto_w": bool(render_auto_width),
         "fig_w": int(figure_width_px),
         "cases_sig": str(cases_sig),
-        "axis_cases_sig": _stable_string_list_sig(list(location_cases_for_axes)),
         "colors_sig": str(colors_sig),
     }
     rx_sig = hashlib.sha1(
@@ -2343,7 +2332,6 @@ def _get_or_build_cached_rx_scatter_figure(
             plot_height=int(plot_height),
             use_auto_width=bool(render_auto_width),
             figure_width_px=int(figure_width_px),
-            axis_cases=list(location_cases_for_axes),
         )
         st.session_state[rx_fig_sig_key] = rx_sig
         st.session_state[rx_fig_cache_key] = rx_fig_built
@@ -2578,7 +2566,12 @@ def _render_line_plot_item(
         legend_entrywidth=int(legend_entrywidth),
     )
     if isinstance(fig, go.Figure):
-        st.plotly_chart(fig, use_container_width=bool(render_auto_width), config=download_config, key=chart_key)
+        st.plotly_chart(
+            fig,
+            width="stretch" if bool(render_auto_width) else "content",
+            config=download_config,
+            key=chart_key,
+        )
 
 
 def _render_line_plot_sequence(
@@ -2632,16 +2625,16 @@ def _render_rx_scatter_plot(
         df_r=ctx.df_r,
         df_x=ctx.df_x,
         location_cases=list(ctx.location_cases),
-        case_colors=ctx.case_colors_scatter,
+        case_colors=ctx.case_colors,
         cases_sig=str(ctx.cases_sig),
-        colors_sig=str(ctx.scatter_colors_sig),
+        colors_sig=str(ctx.colors_sig),
         plot_height=int(ctx.plot_height),
         render_auto_width=bool(ctx.render_auto_width),
         figure_width_px=int(ctx.figure_width_px),
     )
     st.plotly_chart(
         rx_fig,
-        use_container_width=bool(ctx.render_auto_width),
+        width="stretch" if bool(ctx.render_auto_width) else "content",
         config=download_config,
         key="plot_rx",
     )
@@ -2787,9 +2780,9 @@ def main():
     color_by_options = ctx.color_by_options
     color_maps = ctx.color_maps
     auto_color_part_label = ctx.auto_color_part_label
-    case_colors_line = ctx.case_colors_line
     cases_sig = ctx.cases_sig
-    line_colors_sig = ctx.line_colors_sig
+    case_colors = ctx.case_colors
+    colors_sig = ctx.colors_sig
     interactive_controls_area = ctx.interactive_controls_area
 
     download_config = _plotly_download_config()
@@ -2841,9 +2834,9 @@ def main():
                 strip_location_suffix=strip_location_suffix,
                 render_auto_width=render_auto_width,
                 figure_width_px=figure_width_px,
-                case_colors=case_colors_line,
+                case_colors=case_colors,
                 cases_sig=cases_sig,
-                colors_sig=line_colors_sig,
+                colors_sig=colors_sig,
                 filename="X_full_legend.png",
                 chart_key="plot_x",
                 n_lo=float(n_lo),
@@ -2867,9 +2860,9 @@ def main():
                 strip_location_suffix=strip_location_suffix,
                 render_auto_width=render_auto_width,
                 figure_width_px=figure_width_px,
-                case_colors=case_colors_line,
+                case_colors=case_colors,
                 cases_sig=cases_sig,
-                colors_sig=line_colors_sig,
+                colors_sig=colors_sig,
                 filename="R_full_legend.png",
                 chart_key="plot_r",
                 n_lo=float(n_lo),
@@ -2892,9 +2885,9 @@ def main():
                 strip_location_suffix=strip_location_suffix,
                 render_auto_width=render_auto_width,
                 figure_width_px=figure_width_px,
-                case_colors=case_colors_line,
+                case_colors=case_colors,
                 cases_sig=cases_sig,
-                colors_sig=line_colors_sig,
+                colors_sig=colors_sig,
                 n_lo=float(n_lo),
                 n_hi=float(n_hi),
                 selection_mode_layout=bool(selection_mode_layout),
@@ -2916,9 +2909,9 @@ def main():
                 strip_location_suffix=strip_location_suffix,
                 render_auto_width=render_auto_width,
                 figure_width_px=figure_width_px,
-                case_colors=case_colors_line,
+                case_colors=case_colors,
                 cases_sig=cases_sig,
-                colors_sig=line_colors_sig,
+                colors_sig=colors_sig,
                 n_lo=float(n_lo),
                 n_hi=float(n_hi),
                 selection_mode_layout=bool(selection_mode_layout),

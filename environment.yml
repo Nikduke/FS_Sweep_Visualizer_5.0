@@ -1,0 +1,13 @@
+﻿name: fs-sweep-visualizer
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  - pip:
+      - streamlit>=1.45,<1.56
+      - pandas>=2.0,<3
+      - numpy>=2.0,<3
+      - plotly>=6.0,<7
+      - openpyxl>=3.1,<4
+      - pyflakes>=3,<4

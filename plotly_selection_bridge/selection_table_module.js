@@ -146,11 +146,7 @@ function registerExternalSelectionApi(ctx) {
   if (!ctx) return;
   const key = `${ctx.dataId}|${ctx.chartId}`;
   const store = getApiStore();
-  if (typeof pruneStoreByStateKey === "function") {
-    pruneStoreByStateKey(store, key);
-  } else {
-    pruneStoreByDataId(store, ctx.dataId);
-  }
+  pruneStoreByStateKey(store, key);
   store[key] = {
     getState: () => {
       const curCtx = typeof ensureContext === "function" ? ensureContext() : (ctx && ctx.state ? ctx : null);

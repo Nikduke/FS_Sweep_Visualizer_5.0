@@ -4,7 +4,6 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
 
-REQUIRED_SHEETS: Tuple[str, str, str, str] = ("R1", "X1", "R0", "X0")
 ENERGINET_DEFAULT_THRESHOLDS_BY_F1: Dict[int, Dict[int, float]] = {
     50: {2: 400.0, 3: 600.0, 4: 2400.0},
     60: {2: 450.0, 3: 800.0, 4: 3000.0},
@@ -12,8 +11,6 @@ ENERGINET_DEFAULT_THRESHOLDS_BY_F1: Dict[int, Dict[int, float]] = {
 # Backward-compatible alias for existing imports (50 Hz defaults).
 ENERGINET_DEFAULT_THRESHOLDS: Dict[int, float] = dict(ENERGINET_DEFAULT_THRESHOLDS_BY_F1[50])
 BAND_HALF_WIDTH_FACTOR = 0.2
-RANKED_METHOD_N_MIN = 2
-RANKED_METHOD_N_MAX = 6
 OUTLIER_MAD_Z_THRESHOLD = 3.5
 OUTLIER_PERCENTILE_FALLBACK = 95.0
 
@@ -72,8 +69,12 @@ def _frequency_vector(df: Any, sheet_name: str) -> np.ndarray:
     raise ValueError(f"Unsupported sheet type for '{sheet_name}'.")
 
 
-def _validate_input_tables(data: Dict[str, Any]) -> Tuple[np.ndarray, List[str], Dict[str, np.ndarray]]:
-    missing = [s for s in REQUIRED_SHEETS if s not in data or data[s] is None]
+def _validate_input_tables(
+    data: Dict[str, Any],
+    required_sheets: Sequence[str],
+) -> Tuple[np.ndarray, List[str], Dict[str, np.ndarray]]:
+    sheet_names = tuple(str(name) for name in required_sheets)
+    missing = [s for s in sheet_names if s not in data or data[s] is None]
     if missing:
         raise ValueError(f"Missing required sheets: {', '.join(missing)}.")
 
@@ -81,7 +82,7 @@ def _validate_input_tables(data: Dict[str, Any]) -> Tuple[np.ndarray, List[str],
     ref_freq_sorted: Optional[np.ndarray] = None
     ref_cases: Optional[List[str]] = None
 
-    for name in REQUIRED_SHEETS:
+    for name in sheet_names:
         df = data[name]
         freq = _frequency_vector(df, name)
         order = np.argsort(freq, kind="mergesort")
@@ -741,16 +742,37 @@ def _compute_outlier_ranking(
     return _ranked_rows_payload(list(rows_by_case.values()), top_n_scope="global")
 
 
+def _compact_energinet_metrics(
+    metrics_by_case: Dict[str, object],
+    case_ids: Sequence[str],
+) -> Dict[str, List[Optional[float]]]:
+    fields = (
+        ("z2", "zmax_band_2"),
+        ("z3", "zmax_band_3"),
+        ("z4", "zmax_band_4"),
+        ("f2", "f_at_zmax_band_2"),
+        ("f3", "f_at_zmax_band_3"),
+        ("f4", "f_at_zmax_band_4"),
+    )
+    compact: Dict[str, List[Optional[float]]] = {}
+    for output_name, source_name in fields:
+        compact[output_name] = [
+            _to_finite_float_or_none(
+                (metrics_by_case.get(case_id) if isinstance(metrics_by_case.get(case_id), dict) else {}).get(source_name)
+            )
+            for case_id in case_ids
+        ]
+    return compact
+
+
 def build_preselection_payload(
     data: Dict[str, Any],
     cases: Sequence[str],
     fundamentals_hz: Sequence[float] = (50.0, 60.0),
     sequence_sheets: Tuple[str, str] = ("R1", "X1"),
 ) -> Dict[str, object]:
-    freq, all_case_ids, row_orders = _validate_input_tables(data)
     r_sheet, x_sheet = str(sequence_sheets[0]), str(sequence_sheets[1])
-    if r_sheet not in data or x_sheet not in data:
-        raise ValueError(f"Missing required sequence sheets for preselection: {r_sheet}/{x_sheet}.")
+    freq, all_case_ids, row_orders = _validate_input_tables(data, (r_sheet, x_sheet))
     all_case_set = set(str(c) for c in all_case_ids)
 
     chosen_cases: List[str] = []
@@ -766,6 +788,8 @@ def build_preselection_payload(
     r_map = _extract_case_arrays(data[r_sheet], chosen_cases, r_sheet, row_order=row_orders.get(r_sheet))
     x_map = _extract_case_arrays(data[x_sheet], chosen_cases, x_sheet, row_order=row_orders.get(x_sheet))
 
+    case_ids = sorted(chosen_cases)
+    case_index = {case_id: idx for idx, case_id in enumerate(case_ids)}
     by_f1: Dict[str, Dict[str, object]] = {}
     for f1 in fundamentals_hz:
         f1_val = float(f1)
@@ -840,48 +864,45 @@ def build_preselection_payload(
         risk_capacitive = _compute_risk_ranking(harmonic_points_capacitive, chosen_cases, f1_val)
         outlier_all = _compute_outlier_ranking(harmonic_points, chosen_cases)
         outlier_capacitive = _compute_outlier_ranking(harmonic_points_capacitive, chosen_cases)
+        metrics_by_case = energinet["energinet_metrics"]
+        metrics = metrics_by_case if isinstance(metrics_by_case, dict) else {}
+        band_counts_by_harmonic = energinet["band_sample_counts"]
+        band_counts = band_counts_by_harmonic if isinstance(band_counts_by_harmonic, dict) else {}
         by_f1[f1_key] = {
-            "energinet_metrics": dict(energinet["energinet_metrics"]),
-            "band_sample_counts": dict(energinet["band_sample_counts"]),
+            "format": "compact_v6",
+            "case_ids": list(case_ids),
+            "energinet": _compact_energinet_metrics(metrics, case_ids),
+            "band_sample_counts": {
+                str(k): int(_to_nonnegative_int(v))
+                for k, v in band_counts.items()
+            },
             "iec_modes": {
-                "all": {
-                    "iec_case_ids": list(iec_all["iec_case_ids"]),
-                    "iec_first_harmonic": dict(iec_all["iec_first_harmonic"]),
-                    "iec_vertex_orders": dict(iec_all["iec_vertex_orders"]),
-                    "iec_vertex_zmax": dict(iec_all.get("iec_vertex_zmax", {})),
-                    "n_env": int(iec_all["n_env"]),
-                },
-                "capacitive": {
-                    "iec_case_ids": list(iec_capacitive["iec_case_ids"]),
-                    "iec_first_harmonic": dict(iec_capacitive["iec_first_harmonic"]),
-                    "iec_vertex_orders": dict(iec_capacitive["iec_vertex_orders"]),
-                    "iec_vertex_zmax": dict(iec_capacitive.get("iec_vertex_zmax", {})),
-                    "n_env": int(iec_capacitive["n_env"]),
-                },
+                "all": _compact_iec_mode_payload(iec_all, case_index),
+                "capacitive": _compact_iec_mode_payload(iec_capacitive, case_index),
             },
             "peak_z_modes": {
-                "all": dict(peak_z_exact_all),
-                "capacitive": dict(peak_z_exact_capacitive),
+                "all": _compact_ranked_mode_payload(peak_z_exact_all, case_index),
+                "capacitive": _compact_ranked_mode_payload(peak_z_exact_capacitive, case_index),
             },
             "peak_z_band_modes": {
-                "all": dict(peak_z_band_all),
-                "capacitive": dict(peak_z_band_capacitive),
+                "all": _compact_ranked_mode_payload(peak_z_band_all, case_index),
+                "capacitive": _compact_ranked_mode_payload(peak_z_band_capacitive, case_index),
             },
             "peak_x_modes": {
-                "all": dict(peak_x_exact_all),
-                "capacitive": dict(peak_x_exact_capacitive),
+                "all": _compact_ranked_mode_payload(peak_x_exact_all, case_index),
+                "capacitive": _compact_ranked_mode_payload(peak_x_exact_capacitive, case_index),
             },
             "peak_x_band_modes": {
-                "all": dict(peak_x_band_all),
-                "capacitive": dict(peak_x_band_capacitive),
+                "all": _compact_ranked_mode_payload(peak_x_band_all, case_index),
+                "capacitive": _compact_ranked_mode_payload(peak_x_band_capacitive, case_index),
             },
             "risk_modes": {
-                "all": dict(risk_all),
-                "capacitive": dict(risk_capacitive),
+                "all": _compact_ranked_mode_payload(risk_all, case_index),
+                "capacitive": _compact_ranked_mode_payload(risk_capacitive, case_index),
             },
             "outlier_modes": {
-                "all": dict(outlier_all),
-                "capacitive": dict(outlier_capacitive),
+                "all": _compact_ranked_mode_payload(outlier_all, case_index),
+                "capacitive": _compact_ranked_mode_payload(outlier_capacitive, case_index),
             },
         }
 
@@ -890,6 +911,7 @@ def build_preselection_payload(
         "error": "",
         "limitation_note": str(LIMITATION_NOTE),
         "cases_count": int(len(chosen_cases)),
+        "format": "compact_v6",
         "by_f1": by_f1,
     }
 
@@ -1007,151 +1029,6 @@ def _compact_ranked_mode_payload(mode_payload: Dict[str, object], case_index: Di
     }
 
 
-def _compact_preselection_payload(payload: Dict[str, object]) -> Dict[str, object]:
-    if not isinstance(payload, dict):
-        return {
-            "available": False,
-            "error": "Invalid preselection payload shape.",
-            "limitation_note": "",
-            "cases_count": 0,
-            "format": "compact_v6",
-            "by_f1": {},
-        }
-
-    if str(payload.get("format", "")) == "compact_v6":
-        return dict(payload)
-
-    out: Dict[str, object] = {
-        "available": bool(payload.get("available", False)),
-        "error": str(payload.get("error", "")),
-        "limitation_note": str(payload.get("limitation_note", "")),
-        "cases_count": int(_to_nonnegative_int(payload.get("cases_count", 0))),
-        "format": "compact_v6",
-        "by_f1": {},
-    }
-
-    by_f1_raw = payload.get("by_f1")
-    by_f1_out: Dict[str, Dict[str, object]] = {}
-    if isinstance(by_f1_raw, dict):
-        for f1_key, base_node_raw in by_f1_raw.items():
-            if not isinstance(base_node_raw, dict):
-                continue
-
-            metrics_raw = base_node_raw.get("energinet_metrics")
-            metrics = metrics_raw if isinstance(metrics_raw, dict) else {}
-            case_ids = sorted([str(cid) for cid in metrics.keys() if str(cid) != ""])
-
-            iec_modes_raw = base_node_raw.get("iec_modes")
-            iec_modes = iec_modes_raw if isinstance(iec_modes_raw, dict) else {}
-            all_src = iec_modes.get("all")
-            capacitive_src = iec_modes.get("capacitive")
-            all_node = all_src if isinstance(all_src, dict) else base_node_raw
-            capacitive_node = capacitive_src if isinstance(capacitive_src, dict) else all_node
-            ranked_sources: List[Dict[str, object]] = []
-            for modes_name in (
-                "peak_z_modes",
-                "peak_z_band_modes",
-                "peak_x_modes",
-                "peak_x_band_modes",
-                "risk_modes",
-                "outlier_modes",
-            ):
-                modes_raw = base_node_raw.get(modes_name)
-                modes = modes_raw if isinstance(modes_raw, dict) else {}
-                for ranked_node_raw in (modes.get("all"), modes.get("capacitive")):
-                    if isinstance(ranked_node_raw, dict):
-                        ranked_sources.append(ranked_node_raw)
-
-            for mode_node in (all_node, capacitive_node):
-                mode_ids = mode_node.get("iec_case_ids") if isinstance(mode_node, dict) else None
-                if isinstance(mode_ids, list):
-                    for cid in mode_ids:
-                        c = str(cid)
-                        if c and c not in case_ids:
-                            case_ids.append(c)
-            for ranked_node in ranked_sources:
-                ranked_ids = ranked_node.get("case_ids")
-                if isinstance(ranked_ids, list):
-                    for cid in ranked_ids:
-                        c = str(cid)
-                        if c and c not in case_ids:
-                            case_ids.append(c)
-            case_ids = sorted(case_ids)
-            case_index = {cid: i for i, cid in enumerate(case_ids)}
-            ranked_modes: Dict[str, Dict[str, object]] = {}
-            for modes_name in (
-                "peak_z_modes",
-                "peak_z_band_modes",
-                "peak_x_modes",
-                "peak_x_band_modes",
-                "risk_modes",
-                "outlier_modes",
-            ):
-                modes_raw = base_node_raw.get(modes_name)
-                modes = modes_raw if isinstance(modes_raw, dict) else {}
-                all_mode = modes.get("all")
-                cap_mode = modes.get("capacitive")
-                ranked_modes[modes_name] = {
-                    "all": _compact_ranked_mode_payload(
-                        all_mode if isinstance(all_mode, dict) else {},
-                        case_index,
-                    ),
-                    "capacitive": _compact_ranked_mode_payload(
-                        cap_mode if isinstance(cap_mode, dict) else {},
-                        case_index,
-                    ),
-                }
-
-            z2: List[Optional[float]] = []
-            z3: List[Optional[float]] = []
-            z4: List[Optional[float]] = []
-            f2: List[Optional[float]] = []
-            f3: List[Optional[float]] = []
-            f4: List[Optional[float]] = []
-            for cid in case_ids:
-                row_raw = metrics.get(cid)
-                row = row_raw if isinstance(row_raw, dict) else {}
-                z2.append(_to_finite_float_or_none(row.get("zmax_band_2")))
-                z3.append(_to_finite_float_or_none(row.get("zmax_band_3")))
-                z4.append(_to_finite_float_or_none(row.get("zmax_band_4")))
-                f2.append(_to_finite_float_or_none(row.get("f_at_zmax_band_2")))
-                f3.append(_to_finite_float_or_none(row.get("f_at_zmax_band_3")))
-                f4.append(_to_finite_float_or_none(row.get("f_at_zmax_band_4")))
-
-            band_counts_raw = base_node_raw.get("band_sample_counts")
-            band_counts_in = band_counts_raw if isinstance(band_counts_raw, dict) else {}
-            band_counts = {
-                str(k): int(_to_nonnegative_int(v))
-                for k, v in band_counts_in.items()
-            }
-
-            by_f1_out[str(f1_key)] = {
-                "format": "compact_v6",
-                "case_ids": list(case_ids),
-                "energinet": {
-                    "z2": z2,
-                    "z3": z3,
-                    "z4": z4,
-                    "f2": f2,
-                    "f3": f3,
-                    "f4": f4,
-                },
-                "band_sample_counts": band_counts,
-                "iec_modes": {
-                    "all": _compact_iec_mode_payload(all_node, case_index),
-                    "capacitive": _compact_iec_mode_payload(capacitive_node, case_index),
-                },
-                "peak_z_modes": ranked_modes["peak_z_modes"],
-                "peak_z_band_modes": ranked_modes["peak_z_band_modes"],
-                "peak_x_modes": ranked_modes["peak_x_modes"],
-                "peak_x_band_modes": ranked_modes["peak_x_band_modes"],
-                "risk_modes": ranked_modes["risk_modes"],
-                "outlier_modes": ranked_modes["outlier_modes"],
-            }
-    out["by_f1"] = by_f1_out
-    return out
-
-
 def build_preselection_payload_safe(
     data: Dict[str, Any],
     cases: Sequence[str],
@@ -1159,13 +1036,12 @@ def build_preselection_payload_safe(
     sequence_sheets: Tuple[str, str] = ("R1", "X1"),
 ) -> Dict[str, object]:
     try:
-        raw_payload = build_preselection_payload(
+        return build_preselection_payload(
             data,
             cases,
             fundamentals_hz=fundamentals_hz,
             sequence_sheets=sequence_sheets,
         )
-        return _compact_preselection_payload(raw_payload)
     except Exception as exc:
         return {
             "available": False,

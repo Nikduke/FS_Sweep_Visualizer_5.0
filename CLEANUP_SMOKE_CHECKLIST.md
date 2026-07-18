@@ -1,64 +1,84 @@
-# Cleanup Smoke Checklist
+﻿# Cleanup Smoke Checklist
 
-Run this checklist after local refactor batches. Do not commit/push unless explicitly requested.
+Run after meaningful app changes. Use current conda environment `fs-sweep-visualizer`.
 
-## Python Checks
+## Static Checks
 
-- `& "$HOME\anaconda3\python.exe" -m py_compile fs_sweep_app_spline.py preselection_shortlist.py`
-- `& "$HOME\anaconda3\python.exe" -m pyflakes fs_sweep_app_spline.py preselection_shortlist.py`
+```powershell
+python -m py_compile fs_sweep_app_spline.py preselection_shortlist.py tests/test_preselection_payload.py
+python -m unittest tests.test_preselection_payload
+python -m pyflakes fs_sweep_app_spline.py preselection_shortlist.py tests/test_preselection_payload.py
+```
+
+Optional if Node.js is installed:
+
+```powershell
+node --check plotly_export_button/listener.js
+node --check plotly_rx_toolbar/listener.js
+node --check plotly_selection_bridge/listener.js
+node --check plotly_selection_bridge/selection_table_module.js
+```
 
 ## App Startup
 
-- Start app with `run_app.bat`.
+- Start app with `run_app.bat` or `streamlit run fs_sweep_app_spline.py`.
 - Confirm local `FS_sweep.xlsx` loads.
-- Confirm upload path still loads an `.xlsx` file.
+- Confirm uploading another `.xlsx` workbook works.
 
-## Core Context Switches
+## Context Switching
 
-- Switch `Positive` / `Zero`.
-- Switch base frequency `50 Hz` / `60 Hz`.
+- Switch Positive / Zero sequence.
+- Switch base frequency 50 Hz / 60 Hz.
 - Switch location.
 - Toggle spline on/off.
 
-## Plot Visibility
+## Display and Plot Layout
 
-- Toggle `R vs X scatter`.
-- Toggle `X`, `R`, `X/R`, `Z`.
-- Toggle `Selection mode`.
-- Confirm default layout still stacks scatter then line plots.
-- Confirm selection mode row 1 is scatter + `X`; row 2 is enabled `R` + `X/R` + `Z`.
+- Change plot-area height.
+- Toggle Auto width.
+- If Auto width is off, change Figure width.
+- Confirm `R vs X` scatter respects Display Settings width and keeps 1.5 height factor.
+- Toggle `R vs X scatter`, `X`, `R`, `X/R`, and `Z` plots.
+- Toggle Selection mode.
+- Confirm normal layout stacks scatter and line plots.
+- Confirm Selection mode places scatter and `X` in first row and enabled `R`, `X/R`, `Z` in second row.
 
-## Selection / Filters
+## Selection and Filters
 
 - Use case-part filters.
 - Change color mode.
-- Click scatter point; selected point becomes `diamond`.
+- Click scatter point; selected point becomes diamond.
 - Click line trace; same case selection updates.
-- Toggle `Show only selected sweeps`.
+- Toggle `Hide unselected`.
 - Import case list with spaces, commas, tabs, and newlines.
-- Remove selected row with `Del`.
+- Remove selected row with Delete.
 - Clear selected list.
 - Download selected CSV.
 
-## Methods / Harmonics
+## Selection Methods
 
-- Toggle Energinet.
-- Edit `T2`, `T3`, `T4`.
-- Set Energinet `Top N`.
-- Toggle IEC.
-- Set IEC `Top N`.
-- Toggle `Include collinear boundary (+N)`.
-- Toggle harmonic lines.
-- Change bin width.
+- Open Selection methods.
+- Toggle Energinet and edit thresholds.
+- Toggle RX hull.
+- Toggle Peak |Z| exact and band modes.
+- Toggle Peak X exact and band modes.
+- Toggle Risk.
+- Toggle Outliers.
+- Test capacitive variants for relevant methods.
+- Change Top N values.
+- Confirm selected cases update in scatter and line plots.
 
-## Scatter Frequency
+## Scatter Frequency Controls
 
 - Move in-plot slider.
-- Use `Prev frequency` / `Next frequency`.
-- Use `Set f (Hz)`.
-- Confirm scatter status count and frequency steps update.
+- Use Previous frequency / Next frequency.
+- Use Set f (Hz).
+- Confirm frequency value and scatter points update together.
 
 ## Export
 
-- Export `X`, `R`, `X/R`, and `Z` PNG when enabled.
+- Export scatter PNG with `Fixed size` on and off.
+- Export `X`, `R`, `X/R`, and `Z` PNGs when enabled.
+- Confirm long legends are not cut.
 - Confirm selected-only legend state is reflected in export.
+- Confirm scatter export omits the frequency slider.

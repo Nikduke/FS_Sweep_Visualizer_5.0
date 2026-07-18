@@ -17,12 +17,27 @@ function sendToStreamlit(type, payload) {
 }
 
 let latestArgs = null;
+let latestContextArgs = null;
+let latestContext = null;
 let applyPassNonce = 0;
 let applyQueued = false;
 let lastRenderNonceSeen = -1;
 let lastSentFrameHeight = 0;
 let plotDivCacheKey = "";
 let plotDivCache = [];
+
+const METHOD_RAW_CASE_SET_FIELDS = [
+  "methodEnerginetCasesRaw",
+  "methodIecCasesRaw", "methodIecCasesRawAll", "methodIecCasesRawCapacitive",
+  "methodPeakZCasesRaw", "methodPeakZCasesRawAll", "methodPeakZCasesRawCapacitive",
+  "methodPeakZExactCasesRawAll", "methodPeakZExactCasesRawCapacitive",
+  "methodPeakZBandCasesRawAll", "methodPeakZBandCasesRawCapacitive",
+  "methodPeakXCasesRaw", "methodPeakXCasesRawAll", "methodPeakXCasesRawCapacitive",
+  "methodPeakXExactCasesRawAll", "methodPeakXExactCasesRawCapacitive",
+  "methodPeakXBandCasesRawAll", "methodPeakXBandCasesRawCapacitive",
+  "methodRiskCasesRaw", "methodRiskCasesRawAll", "methodRiskCasesRawCapacitive",
+  "methodOutlierCasesRaw", "methodOutlierCasesRawAll", "methodOutlierCasesRawCapacitive",
+];
 
 function debugEnabled() {
   try {
@@ -60,17 +75,6 @@ function pruneStoreByStateKey(store, stateKey) {
   if (!keep) return;
   for (const k of Object.keys(store)) {
     if (k !== keep) {
-      delete store[k];
-    }
-  }
-}
-
-function pruneStoreByDataId(store, dataId) {
-  if (!store || typeof store !== "object") return;
-  const did = String(dataId || "");
-  if (!did) return;
-  for (const k of Object.keys(store)) {
-    if (!k.startsWith(`${did}|`)) {
       delete store[k];
     }
   }
@@ -195,7 +199,7 @@ function createDefaultState(partOptions, colorByOptions, colorByDefault, showOnl
   const baseDefault = Number(baseFreqDefault || 50);
   const validBase = baseOptions.includes(baseDefault) ? baseDefault : Number(baseOptions[0] || 50);
   const th = preselectionThresholdDefaults();
-  return {
+  const state = {
     selectedByPart,
     manualSelectedCases: new Set(),
     methodExcludedCases: new Set(),
@@ -223,30 +227,6 @@ function createDefaultState(partOptions, colorByOptions, colorByDefault, showOnl
     methodPeakXTopN: 10,
     methodRiskTopN: 10,
     methodOutlierTopN: 10,
-    methodEnerginetCasesRaw: new Set(),
-    methodIecCasesRaw: new Set(),
-    methodIecCasesRawAll: new Set(),
-    methodIecCasesRawCapacitive: new Set(),
-    methodPeakZCasesRaw: new Set(),
-    methodPeakZCasesRawAll: new Set(),
-    methodPeakZCasesRawCapacitive: new Set(),
-    methodPeakZExactCasesRawAll: new Set(),
-    methodPeakZExactCasesRawCapacitive: new Set(),
-    methodPeakZBandCasesRawAll: new Set(),
-    methodPeakZBandCasesRawCapacitive: new Set(),
-    methodPeakXCasesRaw: new Set(),
-    methodPeakXCasesRawAll: new Set(),
-    methodPeakXCasesRawCapacitive: new Set(),
-    methodPeakXExactCasesRawAll: new Set(),
-    methodPeakXExactCasesRawCapacitive: new Set(),
-    methodPeakXBandCasesRawAll: new Set(),
-    methodPeakXBandCasesRawCapacitive: new Set(),
-    methodRiskCasesRaw: new Set(),
-    methodRiskCasesRawAll: new Set(),
-    methodRiskCasesRawCapacitive: new Set(),
-    methodOutlierCasesRaw: new Set(),
-    methodOutlierCasesRawAll: new Set(),
-    methodOutlierCasesRawCapacitive: new Set(),
     selectedCases: new Set(),
     colorBy: validDefaultColor,
     baseFrequencyHz: validBase,
@@ -259,6 +239,8 @@ function createDefaultState(partOptions, colorByOptions, colorByDefault, showOnl
     __resetToken: 0,
     __methodRawCacheKey: "",
   };
+  resetMethodRawCaseSets(state);
+  return state;
 }
 
 function sanitizeState(state, casesMeta, partOptions, colorByOptions, colorByDefault, baseFreqOptions, baseFreqDefault) {
@@ -271,30 +253,7 @@ function sanitizeState(state, casesMeta, partOptions, colorByOptions, colorByDef
   );
   next.methodExcludedCases = toKnownCaseSet(next.methodExcludedCases, knownCaseIds);
   next.selectedCases = toKnownCaseSet(next.selectedCases, knownCaseIds);
-  next.methodEnerginetCasesRaw = toKnownCaseSet(next.methodEnerginetCasesRaw, knownCaseIds);
-  next.methodIecCasesRaw = toKnownCaseSet(next.methodIecCasesRaw, knownCaseIds);
-  next.methodIecCasesRawAll = toKnownCaseSet(next.methodIecCasesRawAll, knownCaseIds);
-  next.methodIecCasesRawCapacitive = toKnownCaseSet(next.methodIecCasesRawCapacitive, knownCaseIds);
-  next.methodPeakZCasesRaw = toKnownCaseSet(next.methodPeakZCasesRaw, knownCaseIds);
-  next.methodPeakZCasesRawAll = toKnownCaseSet(next.methodPeakZCasesRawAll, knownCaseIds);
-  next.methodPeakZCasesRawCapacitive = toKnownCaseSet(next.methodPeakZCasesRawCapacitive, knownCaseIds);
-  next.methodPeakZExactCasesRawAll = toKnownCaseSet(next.methodPeakZExactCasesRawAll, knownCaseIds);
-  next.methodPeakZExactCasesRawCapacitive = toKnownCaseSet(next.methodPeakZExactCasesRawCapacitive, knownCaseIds);
-  next.methodPeakZBandCasesRawAll = toKnownCaseSet(next.methodPeakZBandCasesRawAll, knownCaseIds);
-  next.methodPeakZBandCasesRawCapacitive = toKnownCaseSet(next.methodPeakZBandCasesRawCapacitive, knownCaseIds);
-  next.methodPeakXCasesRaw = toKnownCaseSet(next.methodPeakXCasesRaw, knownCaseIds);
-  next.methodPeakXCasesRawAll = toKnownCaseSet(next.methodPeakXCasesRawAll, knownCaseIds);
-  next.methodPeakXCasesRawCapacitive = toKnownCaseSet(next.methodPeakXCasesRawCapacitive, knownCaseIds);
-  next.methodPeakXExactCasesRawAll = toKnownCaseSet(next.methodPeakXExactCasesRawAll, knownCaseIds);
-  next.methodPeakXExactCasesRawCapacitive = toKnownCaseSet(next.methodPeakXExactCasesRawCapacitive, knownCaseIds);
-  next.methodPeakXBandCasesRawAll = toKnownCaseSet(next.methodPeakXBandCasesRawAll, knownCaseIds);
-  next.methodPeakXBandCasesRawCapacitive = toKnownCaseSet(next.methodPeakXBandCasesRawCapacitive, knownCaseIds);
-  next.methodRiskCasesRaw = toKnownCaseSet(next.methodRiskCasesRaw, knownCaseIds);
-  next.methodRiskCasesRawAll = toKnownCaseSet(next.methodRiskCasesRawAll, knownCaseIds);
-  next.methodRiskCasesRawCapacitive = toKnownCaseSet(next.methodRiskCasesRawCapacitive, knownCaseIds);
-  next.methodOutlierCasesRaw = toKnownCaseSet(next.methodOutlierCasesRaw, knownCaseIds);
-  next.methodOutlierCasesRawAll = toKnownCaseSet(next.methodOutlierCasesRawAll, knownCaseIds);
-  next.methodOutlierCasesRawCapacitive = toKnownCaseSet(next.methodOutlierCasesRawCapacitive, knownCaseIds);
+  sanitizeMethodRawCaseSets(next, knownCaseIds);
 
   const selectedByPart = [];
   const rawByPart = Array.isArray(next.selectedByPart) ? next.selectedByPart : [];
@@ -387,30 +346,7 @@ function resetSelectionState(state) {
   state.methodRiskCapacitiveOnly = false;
   state.methodOutlierEnabled = false;
   state.methodOutlierCapacitiveOnly = false;
-  state.methodEnerginetCasesRaw = new Set();
-  state.methodIecCasesRaw = new Set();
-  state.methodIecCasesRawAll = new Set();
-  state.methodIecCasesRawCapacitive = new Set();
-  state.methodPeakZCasesRaw = new Set();
-  state.methodPeakZCasesRawAll = new Set();
-  state.methodPeakZCasesRawCapacitive = new Set();
-  state.methodPeakZExactCasesRawAll = new Set();
-  state.methodPeakZExactCasesRawCapacitive = new Set();
-  state.methodPeakZBandCasesRawAll = new Set();
-  state.methodPeakZBandCasesRawCapacitive = new Set();
-  state.methodPeakXCasesRaw = new Set();
-  state.methodPeakXCasesRawAll = new Set();
-  state.methodPeakXCasesRawCapacitive = new Set();
-  state.methodPeakXExactCasesRawAll = new Set();
-  state.methodPeakXExactCasesRawCapacitive = new Set();
-  state.methodPeakXBandCasesRawAll = new Set();
-  state.methodPeakXBandCasesRawCapacitive = new Set();
-  state.methodRiskCasesRaw = new Set();
-  state.methodRiskCasesRawAll = new Set();
-  state.methodRiskCasesRawCapacitive = new Set();
-  state.methodOutlierCasesRaw = new Set();
-  state.methodOutlierCasesRawAll = new Set();
-  state.methodOutlierCasesRawCapacitive = new Set();
+  resetMethodRawCaseSets(state);
   state.selectedCases = new Set();
   state.__methodRawCacheKey = "";
   state.importStatus = "";
@@ -418,6 +354,7 @@ function resetSelectionState(state) {
 
 function ensureContext() {
   if (!latestArgs) return null;
+  if (latestContext && latestContextArgs === latestArgs) return latestContext;
   const dataId = String(latestArgs.data_id || "");
   const chartId = String(latestArgs.chart_id || "");
   const resetToken = Number(latestArgs.reset_token || 0);
@@ -486,6 +423,8 @@ function ensureContext() {
     displayLookup,
   };
   recomputeSelectedCases(ctx);
+  latestContextArgs = latestArgs;
+  latestContext = ctx;
   return ctx;
 }
 
@@ -801,6 +740,18 @@ function computeIecCandidatesForMode(ctx, modeKey) {
     for (const row of limited) out.add(String(row.caseId));
   }
   return out;
+}
+
+function resetMethodRawCaseSets(state) {
+  for (const field of METHOD_RAW_CASE_SET_FIELDS) {
+    state[field] = new Set();
+  }
+}
+
+function sanitizeMethodRawCaseSets(state, knownCaseIds) {
+  for (const field of METHOD_RAW_CASE_SET_FIELDS) {
+    state[field] = toKnownCaseSet(state[field], knownCaseIds);
+  }
 }
 
 function getRankedModeData(baseData, modesName, modeKey) {
@@ -2661,6 +2612,8 @@ window.addEventListener("message", (event) => {
   const data = event && event.data ? event.data : null;
   if (!data || data.type !== "streamlit:render") return;
   latestArgs = data.args || {};
+  latestContextArgs = null;
+  latestContext = null;
   renderPanel();
   scheduleApplyPasses();
 });

@@ -5,7 +5,6 @@ import numpy as np
 from fs_sweep_app_spline import SweepSheet
 from preselection_shortlist import (
     build_preselection_payload_safe,
-    _compact_preselection_payload,
     _compute_exact_peak_x_ranking,
     _compute_peak_x_ranking,
     _ranked_rows_payload,
@@ -41,55 +40,44 @@ class RankedPayloadTests(unittest.TestCase):
         self.assertEqual(payload["scores"], [5.0, 2.0])
         self.assertEqual(payload["harmonic"], [2, 3])
 
-    def test_compact_payload_accepts_ranked_array_shape(self):
-        ranked = _ranked_rows_payload(
-            [{"case_id": "B", "score": 4.0, "zmax": 10.0, "harmonic": 2}],
-            top_n_scope="global",
-        )
-        compact = _compact_preselection_payload(
+    def test_safe_payload_has_the_browser_compact_contract(self):
+        freq = np.arange(0.0, 361.0, 1.0)
+        cases = ("B__L", "A__L")
+        r_vals = np.column_stack([np.ones_like(freq), np.full_like(freq, 2.0)])
+        x_vals = np.column_stack([
+            -np.exp(-np.square((freq - 180.0) / 20.0)) * 100.0,
+            np.cos(freq / 40.0) * 20.0,
+        ])
+        payload = build_preselection_payload_safe(
             {
-                "available": True,
-                "cases_count": 1,
-                "by_f1": {
-                    "50": {
-                        "energinet_metrics": {},
-                        "band_sample_counts": {"2": 3},
-                        "iec_modes": {
-                            "all": {
-                                "iec_case_ids": ["B"],
-                                "iec_vertex_orders": {"B": [2, 4]},
-                                "iec_vertex_zmax": {"B": {"2": 10.0, "4": 40.0}},
-                                "n_env": 6,
-                            },
-                            "capacitive": {
-                                "iec_case_ids": [],
-                                "iec_vertex_orders": {},
-                                "iec_vertex_zmax": {},
-                                "n_env": 6,
-                            },
-                        },
-                        "peak_z_modes": {"all": ranked, "capacitive": ranked},
-                        "peak_z_band_modes": {"all": ranked, "capacitive": ranked},
-                        "peak_x_modes": {"all": ranked, "capacitive": ranked},
-                        "peak_x_band_modes": {"all": ranked, "capacitive": ranked},
-                        "risk_modes": {"all": ranked, "capacitive": ranked},
-                        "outlier_modes": {"all": ranked, "capacitive": ranked},
-                    }
-                },
-            }
+                "R1": SweepSheet(freq, cases, r_vals),
+                "X1": SweepSheet(freq, cases, x_vals),
+            },
+            list(cases),
+            fundamentals_hz=(60.0,),
+            sequence_sheets=("R1", "X1"),
         )
 
-        node = compact["by_f1"]["50"]
-        self.assertEqual(compact["format"], "compact_v6")
-        self.assertEqual(node["case_ids"], ["B"])
-        self.assertEqual(node["iec_modes"]["all"]["case_idx"], [0])
-        self.assertEqual(node["iec_modes"]["all"]["vertex_orders"], [[2, 4]])
-        self.assertEqual(node["iec_modes"]["all"]["vertex_zmax"], [[10.0, 40.0]])
-        self.assertEqual(node["iec_modes"]["all"]["top_n_scope"], "per_harmonic")
-        self.assertEqual(node["risk_modes"]["all"]["case_idx"], [0])
-        self.assertEqual(node["risk_modes"]["all"]["scores"], [4.0])
-        self.assertEqual(node["peak_z_band_modes"]["all"]["case_idx"], [0])
-        self.assertEqual(node["peak_x_band_modes"]["all"]["case_idx"], [0])
+        self.assertEqual(payload["format"], "compact_v6")
+        node = payload["by_f1"]["60"]
+        self.assertEqual(node["case_ids"], ["A__L", "B__L"])
+        self.assertEqual(set(node), {
+            "format", "case_ids", "energinet", "band_sample_counts", "iec_modes",
+            "peak_z_modes", "peak_z_band_modes", "peak_x_modes", "peak_x_band_modes",
+            "risk_modes", "outlier_modes",
+        })
+        for metric in ("z2", "z3", "z4", "f2", "f3", "f4"):
+            self.assertEqual(len(node["energinet"][metric]), len(node["case_ids"]))
+        for modes_name in (
+            "peak_z_modes", "peak_z_band_modes", "peak_x_modes", "peak_x_band_modes",
+            "risk_modes", "outlier_modes",
+        ):
+            for mode in ("all", "capacitive"):
+                ranked = node[modes_name][mode]
+                self.assertEqual(len(ranked["case_idx"]), len(ranked["scores"]))
+                self.assertEqual(len(ranked["case_idx"]), len(ranked["zmax"]))
+                self.assertEqual(len(ranked["case_idx"]), len(ranked["harmonic"]))
+                self.assertTrue(all(0 <= idx < len(node["case_ids"]) for idx in ranked["case_idx"]))
 
     def test_peak_x_ranking_uses_harmonic_bands_and_capacitive_mode(self):
         x_map = {
@@ -152,14 +140,13 @@ class RankedPayloadTests(unittest.TestCase):
             "X0": SweepSheet(freq, cases, x_vals),
         }
 
-        raw = build_preselection_payload_safe(
+        payload = build_preselection_payload_safe(
             data,
             list(cases),
             fundamentals_hz=(60.0,),
             sequence_sheets=("R1", "X1"),
         )
-        compact = _compact_preselection_payload(raw)
-        node = compact["by_f1"]["60"]
+        node = payload["by_f1"]["60"]
 
         self.assertGreater(len(node["peak_x_modes"]["all"]["case_idx"]), 0)
         self.assertGreater(len(node["peak_x_modes"]["capacitive"]["case_idx"]), 0)
@@ -167,6 +154,29 @@ class RankedPayloadTests(unittest.TestCase):
         self.assertGreater(len(node["peak_x_band_modes"]["capacitive"]["case_idx"]), 0)
         self.assertGreater(len(node["peak_z_modes"]["all"]["case_idx"]), 0)
         self.assertGreater(len(node["peak_z_band_modes"]["all"]["case_idx"]), 0)
+
+    def test_preselection_supports_a_single_active_sequence_pair(self):
+        freq = np.arange(0.0, 361.0, 1.0)
+        cases = ("A__L", "B__L")
+        r_vals = np.column_stack([np.ones_like(freq), np.full_like(freq, 2.0)])
+        x_vals = np.column_stack([
+            -np.exp(-np.square((freq - 180.0) / 20.0)) * 100.0,
+            np.cos(freq / 40.0) * 20.0,
+        ])
+        data = {
+            "R1": SweepSheet(freq, cases, r_vals),
+            "X1": SweepSheet(freq, cases, x_vals),
+        }
+
+        payload = build_preselection_payload_safe(
+            data,
+            list(cases),
+            fundamentals_hz=(60.0,),
+            sequence_sheets=("R1", "X1"),
+        )
+
+        self.assertTrue(payload["available"])
+        self.assertIn("60", payload["by_f1"])
 
 
 if __name__ == "__main__":

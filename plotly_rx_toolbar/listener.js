@@ -17,7 +17,6 @@ function sendToStreamlit(type, payload) {
 }
 
 let latestArgs = {};
-let syncTimer = null;
 let thresholdDebounceTimer = null;
 let selectionStateListener = null;
 let activeStateKey = "";
@@ -90,14 +89,6 @@ function getSelectionApi(stateKey) {
 
 function clearSelectionSyncBindings() {
   try {
-    if (syncTimer) {
-      clearInterval(syncTimer);
-      syncTimer = null;
-    }
-  } catch (e) {
-    debugWarn("clearSelectionSyncBindings.timer", e);
-  }
-  try {
     const rootWin = window.parent || window;
     if (selectionStateListener && rootWin && typeof rootWin.removeEventListener === "function") {
       rootWin.removeEventListener(CASE_UI_STATE_EVENT, selectionStateListener);
@@ -135,13 +126,6 @@ function installSelectionSync(stateKey) {
     }
   } catch (e) {
     debugWarn("installSelectionSync.listener", e);
-  }
-  try {
-    syncTimer = setInterval(() => {
-      syncSelectionControls(activeStateKey, false);
-    }, 5000);
-  } catch (e) {
-    debugWarn("installSelectionSync.timer", e);
   }
 }
 
