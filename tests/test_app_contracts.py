@@ -4,9 +4,11 @@ import unittest
 
 import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
 
 from fs_sweep_app_spline import (
     SweepSheet,
+    _line_plot_header_title,
     _local_workbook_cache_stamp,
     build_rx_scatter_animated,
     load_fs_sweep_xlsx_cached,
@@ -71,6 +73,7 @@ class AppContractTests(unittest.TestCase):
 
         contract = fig.layout.meta["rx_single_trace"]
         self.assertEqual(step_count, 3)
+        self.assertEqual(fig.layout.height, 600)
         self.assertEqual(contract["freq_hz"], [60.0, 120.0, 180.0])
         self.assertEqual(contract["point_count"], 2)
         self.assertEqual(contract["frequency_readout_annotation_index"], 0)
@@ -78,6 +81,7 @@ class AppContractTests(unittest.TestCase):
         self.assertFalse(fig.layout.sliders[0].currentvalue.visible)
         self.assertEqual(fig.layout.sliders[0].y, -0.16)
         self.assertEqual(fig.layout.sliders[0].yanchor, "top")
+        self.assertEqual(fig.layout.annotations[0].y, -0.135)
         self.assertEqual([step.label for step in fig.layout.sliders[0].steps], ["60", "120", "180"])
         self.assertEqual([annotation.text for annotation in fig.layout.annotations], ["Frequency (Hz): 180.0"])
         self.assertEqual(len(contract["x_flat"]), step_count * contract["point_count"])
@@ -85,6 +89,34 @@ class AppContractTests(unittest.TestCase):
         self.assertEqual(len(fig.data[0].x), contract["point_count"])
         self.assertLessEqual(fig.layout.xaxis.range[0], 1.0)
         self.assertGreaterEqual(fig.layout.xaxis.range[1], 6.0)
+
+    def test_scatter_accepts_a_larger_normal_mode_height_factor(self):
+        freq = np.asarray([60.0, 120.0, 180.0])
+        r_sheet = SweepSheet(freq, ("A",), np.asarray([[1.0], [2.0], [3.0]]))
+        x_sheet = SweepSheet(freq, ("A",), np.asarray([[-1.0], [-2.0], [-3.0]]))
+
+        fig, _step_count = build_rx_scatter_animated(
+            r_sheet,
+            x_sheet,
+            ["A"],
+            "Positive",
+            60.0,
+            {"A": "#000000"},
+            plot_height=400,
+            use_auto_width=False,
+            figure_width_px=1000,
+            scatter_height_factor=1.8,
+        )
+
+        self.assertEqual(fig.layout.height, 720)
+
+    def test_selection_mode_uses_a_short_plot_header(self):
+        fig = go.Figure()
+        fig.update_layout(yaxis_title="X1 (Ohm)", meta={"f_base": 60.0})
+        item = {"kind": "x", "fig": fig}
+
+        self.assertEqual(_line_plot_header_title(item), "X1 (Ohm) vs harmonic number (60 Hz base)")
+        self.assertEqual(_line_plot_header_title(item, compact=True), "X1 (Ohm) vs harmonic")
 
     def test_cached_loader_refreshes_when_the_local_workbook_stamp_changes(self):
         with tempfile.TemporaryDirectory() as temp_dir:

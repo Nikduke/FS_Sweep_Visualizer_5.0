@@ -142,6 +142,7 @@ DIM_MARKER_OPACITY = 0.28
 
 # ---- R vs X scatter ----
 RX_SCATTER_HEIGHT_FACTOR = 1.5
+RX_SCATTER_NORMAL_HEIGHT_FACTOR = 1.8
 RX_TOOLBAR_INITIAL_HEIGHT_PX = 220
 RX_SCATTER_SLIDER_BOTTOM_MARGIN_PX = 156
 SELECTION_MODE_AXIS_FONT_COLOR = "#6B7280"
@@ -1238,9 +1239,10 @@ def build_rx_scatter_animated(
     plot_height: int,
     use_auto_width: bool,
     figure_width_px: int,
+    scatter_height_factor: float = RX_SCATTER_HEIGHT_FACTOR,
 ) -> Tuple[go.Figure, int]:
     fig = go.Figure()
-    scatter_height = max(420, int(round(float(plot_height) * float(RX_SCATTER_HEIGHT_FACTOR))))
+    scatter_height = max(420, int(round(float(plot_height) * float(scatter_height_factor))))
     if df_r is None or df_x is None or not cases:
         fig.update_layout(height=scatter_height)
         if not use_auto_width:
@@ -1393,7 +1395,7 @@ def build_rx_scatter_animated(
         annotations=[
             dict(
                 x=0,
-                y=-0.12,
+                y=-0.135,
                 xref="paper",
                 yref="paper",
                 text=frequency_readout,
@@ -2269,6 +2271,7 @@ def _get_or_build_cached_rx_scatter_figure(
     plot_height: int,
     render_auto_width: bool,
     figure_width_px: int,
+    scatter_height_factor: float,
 ) -> Tuple[go.Figure, int]:
     rx_filter_sig_key, rx_fig_sig_key, rx_fig_cache_key, rx_fig_steps_key = _rx_scatter_cache_keys(
         data_id=data_id,
@@ -2286,8 +2289,9 @@ def _get_or_build_cached_rx_scatter_figure(
     rx_sig_payload = {
         "seq": str(seq_label),
         "f_base": float(f_base),
-        "layout": "explicit_scatter_margins_v3",
+        "layout": "explicit_scatter_margins_v4",
         "plot_h": int(plot_height),
+        "scatter_h_factor": float(scatter_height_factor),
         "auto_w": bool(render_auto_width),
         "fig_w": int(figure_width_px),
         "cases_sig": str(cases_sig),
@@ -2308,6 +2312,7 @@ def _get_or_build_cached_rx_scatter_figure(
             plot_height=int(plot_height),
             use_auto_width=bool(render_auto_width),
             figure_width_px=int(figure_width_px),
+            scatter_height_factor=float(scatter_height_factor),
         )
         st.session_state[rx_fig_sig_key] = rx_sig
         st.session_state[rx_fig_cache_key] = rx_fig_built
@@ -2415,7 +2420,7 @@ def _strip_plotly_markup(value: object) -> str:
     return txt.replace(chr(937), "Ohm").replace(chr(206) + chr(169), "Ohm").strip()
 
 
-def _line_plot_header_title(it: Dict[str, object]) -> str:
+def _line_plot_header_title(it: Dict[str, object], compact: bool = False) -> str:
     kind = str(it.get("kind", ""))
     fig = it.get("fig")
     y_title = ""
@@ -2430,7 +2435,10 @@ def _line_plot_header_title(it: Dict[str, object]) -> str:
             f_base = float("nan")
         if np.isfinite(f_base):
             base_suffix = f" ({int(round(f_base))} Hz base)"
-    return f"{y_title or _plot_kind_label(kind)} vs harmonic number{base_suffix}"
+    value_title = y_title or _plot_kind_label(kind)
+    if compact:
+        return f"{value_title} vs harmonic"
+    return f"{value_title} vs harmonic number{base_suffix}"
 
 
 def _html_escape(value: object) -> str:
@@ -2530,11 +2538,12 @@ def _render_line_plot_item(
     export_scale: int,
     plot_height: int,
     legend_entrywidth: int,
+    compact_header: bool = False,
 ) -> None:
     fig = it.get("fig")
     chart_key = str(it.get("chart_key", ""))
     _render_plot_header(
-        _line_plot_header_title(it),
+        _line_plot_header_title(it, compact=compact_header),
         export_item=it,
         export_scale=int(export_scale),
         plot_height=int(plot_height),
@@ -2582,9 +2591,12 @@ def _render_rx_scatter_plot(
 
     sequence_suffix = "1" if str(ctx.seq_label) == "Positive" else "0"
     rx_plot_index = int(plot_order.index("rx")) if "rx" in plot_order else 0
-    rx_height = max(420, int(round(float(ctx.plot_height) * float(RX_SCATTER_HEIGHT_FACTOR))))
+    scatter_height_factor = (
+        RX_SCATTER_HEIGHT_FACTOR if bool(ctx.selection_mode_layout) else RX_SCATTER_NORMAL_HEIGHT_FACTOR
+    )
+    rx_height = max(420, int(round(float(ctx.plot_height) * float(scatter_height_factor))))
     _render_plot_header(
-        f"R{sequence_suffix} vs X{sequence_suffix} scatter",
+        f"R{sequence_suffix} vs X{sequence_suffix}" if bool(ctx.selection_mode_layout) else f"R{sequence_suffix} vs X{sequence_suffix} scatter",
         export_item={
             "filename": f"R{sequence_suffix}_vs_X{sequence_suffix}_scatter_selected_legend.png",
             "plot_index": int(rx_plot_index),
@@ -2607,6 +2619,7 @@ def _render_rx_scatter_plot(
         plot_height=int(ctx.plot_height),
         render_auto_width=bool(ctx.render_auto_width),
         figure_width_px=int(ctx.figure_width_px),
+        scatter_height_factor=float(scatter_height_factor),
     )
     st.plotly_chart(
         rx_fig,
@@ -2645,6 +2658,7 @@ def _render_selection_mode_row(
                 export_scale=int(export_scale),
                 plot_height=int(ctx.plot_height),
                 legend_entrywidth=int(legend_entrywidth),
+                compact_header=True,
             )
 
     if len(row_kinds) == 1:

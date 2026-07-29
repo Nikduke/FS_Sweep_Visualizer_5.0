@@ -32,7 +32,7 @@ The tracked `FS_sweep.xlsx` file is the small smoke-test workbook. Other Excel w
 - Sample workbook: `FS_sweep.xlsx`
 - Default display figure width: `1000`
 - Default plot-area height: `400`
-- Scatter height factor: `1.5`
+- Scatter height factor: `1.8` in normal mode and `1.5` in selection mode
 - Custom fixed export width: `1000`
 - Custom fixed export plot-area height: `400`
 - Custom export scale: `4`

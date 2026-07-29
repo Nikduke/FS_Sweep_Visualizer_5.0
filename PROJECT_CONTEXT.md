@@ -28,12 +28,12 @@ Current snapshot includes the latest local app updates:
 
 - Default figure width is `1000`.
 - Plot-area height default is `400`.
-- `R vs X` scatter keeps height factor `1.5` relative to plot-area height.
+- `R vs X` scatter uses height factor `1.8` in normal mode and `1.5` in selection mode, preserving the side-by-side comparison workspace.
 - Scatter now respects manual/default figure width when Auto width is off.
 - Scatter frequency slider opens at the available frequency nearest the third harmonic of the selected base. It labels only base-frequency harmonics along the slider and keeps a separate live Hz readout above it.
 - Custom `Export PNG` has `Fixed size` checked by default.
 - Fixed export uses width `1000`, plot-area height `400`, and scale `4`.
-- Scatter fixed export uses the scatter 1.5-height value.
+- Scatter fixed export uses the displayed scatter height for the active mode.
 - Line plot export preserves selected/current legend state and avoids Plotly default legend cutting.
 - Scatter export removes the web-only frequency slider and builds a selected-case legend.
 - Preselection builds its compact browser payload directly, without an intermediate raw payload.
