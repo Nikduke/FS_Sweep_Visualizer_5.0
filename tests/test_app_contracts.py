@@ -53,7 +53,7 @@ class AppContractTests(unittest.TestCase):
         self.assertEqual(reused_capacitive, fresh_capacitive)
 
     def test_scatter_metadata_matches_slider_trace_contract(self):
-        freq = np.asarray([50.0, 100.0, 150.0])
+        freq = np.asarray([60.0, 120.0, 180.0])
         r_sheet = SweepSheet(freq, ("A", "B"), np.asarray([[1.0, 4.0], [2.0, 5.0], [3.0, 6.0]]))
         x_sheet = SweepSheet(freq, ("A", "B"), np.asarray([[-1.0, -4.0], [-2.0, -5.0], [-3.0, -6.0]]))
 
@@ -62,6 +62,7 @@ class AppContractTests(unittest.TestCase):
             x_sheet,
             ["A", "B"],
             "Positive",
+            60.0,
             {"A": "#000000", "B": "#ffffff"},
             plot_height=400,
             use_auto_width=False,
@@ -70,8 +71,12 @@ class AppContractTests(unittest.TestCase):
 
         contract = fig.layout.meta["rx_single_trace"]
         self.assertEqual(step_count, 3)
-        self.assertEqual(contract["freq_hz"], [50.0, 100.0, 150.0])
+        self.assertEqual(contract["freq_hz"], [60.0, 120.0, 180.0])
         self.assertEqual(contract["point_count"], 2)
+        self.assertEqual(fig.layout.sliders[0].active, 2)
+        self.assertEqual(fig.layout.sliders[0].currentvalue.prefix, "Frequency (Hz): ")
+        self.assertEqual(fig.layout.sliders[0].steps[2].label, "180.0")
+        self.assertEqual([annotation.text for annotation in fig.layout.annotations], ["n=1", "n=2", "n=3"])
         self.assertEqual(len(contract["x_flat"]), step_count * contract["point_count"])
         self.assertEqual(len(contract["y_flat"]), step_count * contract["point_count"])
         self.assertEqual(len(fig.data[0].x), contract["point_count"])

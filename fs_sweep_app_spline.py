@@ -143,6 +143,7 @@ DIM_MARKER_OPACITY = 0.28
 # ---- R vs X scatter ----
 RX_SCATTER_HEIGHT_FACTOR = 1.5
 RX_TOOLBAR_INITIAL_HEIGHT_PX = 220
+RX_SCATTER_SLIDER_BOTTOM_MARGIN_PX = 112
 SELECTION_MODE_AXIS_FONT_COLOR = "#6B7280"
 SELECTION_MODE_AXIS_TITLE_FONT_SIZE_PX = 14
 SELECTION_MODE_TICK_FONT_SIZE_PX = 12
@@ -1232,6 +1233,7 @@ def build_rx_scatter_animated(
     df_x: Optional[SweepSheet],
     cases: List[str],
     seq_label: str,
+    f_base: float,
     case_colors: Dict[str, str],
     plot_height: int,
     use_auto_width: bool,
@@ -1259,7 +1261,7 @@ def build_rx_scatter_animated(
         if not use_auto_width:
             fig.update_layout(width=int(figure_width_px), autosize=False)
         return fig, 0
-    init_idx = int(min(freq_candidates_arr.size - 1, max(0, freq_candidates_arr.size // 2)))
+    init_idx = int(np.argmin(np.abs(freq_candidates_arr - (3.0 * float(f_base)))))
 
     case_arrays: List[Tuple[str, np.ndarray, np.ndarray]] = []
 
@@ -1343,6 +1345,32 @@ def build_rx_scatter_animated(
         )
         for i, f_sel in enumerate(freq_candidates_arr)
     ]
+    harmonic_annotations: List[dict] = []
+    freq_min = float(freq_candidates_arr[0])
+    freq_max = float(freq_candidates_arr[-1])
+    first_harmonic = max(1, int(np.ceil(freq_min / float(f_base))))
+    last_harmonic = int(np.floor(freq_max / float(f_base)))
+    if last_harmonic >= first_harmonic and freq_max > freq_min:
+        harmonics = list(range(first_harmonic, last_harmonic + 1))
+        label_step = max(1, int(np.ceil(len(harmonics) / 12)))
+        labeled_harmonics = harmonics[::label_step]
+        if labeled_harmonics[-1] != harmonics[-1]:
+            labeled_harmonics.append(harmonics[-1])
+        for harmonic in labeled_harmonics:
+            x_pos = (float(harmonic) * float(f_base) - freq_min) / (freq_max - freq_min)
+            harmonic_annotations.append(
+                dict(
+                    x=max(0.0, min(1.0, x_pos)),
+                    y=-0.23,
+                    xref="paper",
+                    yref="paper",
+                    text=f"n={int(harmonic)}",
+                    showarrow=False,
+                    font=dict(size=11, color="#6B7280"),
+                    xanchor="center",
+                    yanchor="top",
+                )
+            )
 
     shapes: List[dict] = [
         dict(type="line", xref="x", yref="paper", x0=0, x1=0, y0=0, y1=1, line=dict(color="rgba(0,0,0,0.45)", width=1)),
@@ -1368,7 +1396,7 @@ def build_rx_scatter_animated(
             l=LEFT_MARGIN_PX,
             r=RIGHT_MARGIN_PX,
             t=TOP_MARGIN_PX,
-            b=SELECTION_MODE_LINE_MARGIN_BOTTOM_PX,
+            b=RX_SCATTER_SLIDER_BOTTOM_MARGIN_PX,
         ),
         margin_autoexpand=False,
         dragmode="zoom",
@@ -1376,6 +1404,7 @@ def build_rx_scatter_animated(
         # Using "event" avoids Plotly's built-in selection-state side effects.
         clickmode="event",
         shapes=shapes,
+        annotations=harmonic_annotations,
         sliders=[
             dict(
                 active=int(init_idx),
@@ -2231,6 +2260,7 @@ def _get_or_build_cached_rx_scatter_figure(
     df_r: Optional[SweepSheet],
     df_x: Optional[SweepSheet],
     location_cases: List[str],
+    f_base: float,
     case_colors: Dict[str, str],
     cases_sig: str,
     colors_sig: str,
@@ -2253,7 +2283,8 @@ def _get_or_build_cached_rx_scatter_figure(
 
     rx_sig_payload = {
         "seq": str(seq_label),
-        "layout": "explicit_scatter_margins_v1",
+        "f_base": float(f_base),
+        "layout": "explicit_scatter_margins_v2",
         "plot_h": int(plot_height),
         "auto_w": bool(render_auto_width),
         "fig_w": int(figure_width_px),
@@ -2270,6 +2301,7 @@ def _get_or_build_cached_rx_scatter_figure(
             df_x=df_x,
             cases=list(location_cases),
             seq_label=seq_label,
+            f_base=float(f_base),
             case_colors=case_colors,
             plot_height=int(plot_height),
             use_auto_width=bool(render_auto_width),
@@ -2566,6 +2598,7 @@ def _render_rx_scatter_plot(
         df_r=ctx.df_r,
         df_x=ctx.df_x,
         location_cases=list(ctx.location_cases),
+        f_base=float(ctx.f_base),
         case_colors=ctx.case_colors,
         cases_sig=str(ctx.cases_sig),
         colors_sig=str(ctx.colors_sig),
