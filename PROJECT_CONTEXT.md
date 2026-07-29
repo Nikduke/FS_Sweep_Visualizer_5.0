@@ -6,6 +6,8 @@ FS Sweep Visualizer is a Streamlit app for reviewing frequency-sweep impedance d
 
 This folder is the active working project root. It is not a transfer wrapper and not a historical archive.
 
+The repository uses Git. The published `main` branch is `git@github.com:Nikduke/FS_Sweep_Visualizer_5.0.git`.
+
 ## Purpose
 
 The app helps inspect many frequency-sweep cases, select important cases, and export plots with readable legends.
@@ -33,6 +35,9 @@ Current snapshot includes the latest local app updates:
 - Scatter fixed export uses the scatter 1.5-height value.
 - Line plot export preserves selected/current legend state and avoids Plotly default legend cutting.
 - Scatter export removes the web-only frequency slider and builds a selected-case legend.
+- Preselection builds its compact browser payload directly, without an intermediate raw payload.
+- The RX toolbar follows selection-state events instead of polling every five seconds.
+- The selection bridge builds its derived case context once per Streamlit render and reuses it for that render's browser interactions and plot passes.
 
 ## Folder Organization
 
@@ -47,12 +52,13 @@ FS_sweep.xlsx                           Small sample workbook for local smoke te
 plotly_export_button/                   Custom PNG export component
 plotly_rx_toolbar/                      Custom scatter frequency/preselection/selection toolbar
 plotly_selection_bridge/                Custom case-selection/filter bridge
-tests/test_preselection_payload.py      Unit tests for selection payload/ranking helpers
+tests/                                  Payload, loader-cache, and scatter-contract tests
 README.md                               Project overview and quick start
 SETUP_CONDA.md                          Detailed conda setup
 CLEANUP_SMOKE_CHECKLIST.md              Manual regression checklist
 STARTER_PROMPT.md                       Prompt for Codex on new laptop
 AGENTS.md                               Local Codex working rules
+.gitignore                              Ignored local caches, workbooks, and exports
 ```
 
 ## Important Files
@@ -90,9 +96,9 @@ streamlit run fs_sweep_app_spline.py
 Core checks:
 
 ```powershell
-python -m py_compile fs_sweep_app_spline.py preselection_shortlist.py tests/test_preselection_payload.py
-python -m unittest tests.test_preselection_payload
-python -m pyflakes fs_sweep_app_spline.py preselection_shortlist.py tests/test_preselection_payload.py
+python -m py_compile fs_sweep_app_spline.py preselection_shortlist.py tests/test_preselection_payload.py tests/test_app_contracts.py
+python -m unittest discover -s tests
+python -m pyflakes fs_sweep_app_spline.py preselection_shortlist.py tests/test_preselection_payload.py tests/test_app_contracts.py
 ```
 
 Optional JavaScript checks if Node.js exists:
@@ -107,12 +113,15 @@ node --check plotly_selection_bridge/selection_table_module.js
 ## Current App Logic Notes
 
 - Workbook data is loaded from Excel and converted into compact in-memory arrays.
+- Local-workbook parsing is cached by path, modification time, and size so replacing `FS_sweep.xlsx` refreshes data during a running session.
 - Base frequency can be 50 Hz or 60 Hz.
 - Sequence can be Positive or Zero.
 - Preselection validates only the active R/X sheet pair, so Positive-only or Zero-only workbooks remain supported.
 - App uses Streamlit session state for selections, filters, cached figures, and custom component state.
 - Custom browser components communicate through Streamlit component iframes and parent-window Plotly state.
 - Preselection builds the compact browser payload directly, avoiding a duplicate raw payload in memory.
+- The RX toolbar's selection controls update through `fsCaseUiStateChanged` events; there is no periodic selection polling.
+- The selection bridge reuses its derived context until the next Streamlit render, then rebuilds from the new arguments.
 - Selection methods are separate and can be combined. Method outputs are additive unless manual selection changes state.
 - Peak |Z| and Peak X support exact harmonic and harmonic-band modes.
 - Capacitive variants are computed inside each relevant method, not post-filtered after normal ranking.
@@ -131,14 +140,14 @@ The only machine-specific requirement is a local Anaconda or Miniconda installat
 - JavaScript components depend on Plotly DOM structure in the Streamlit page.
 - Fixed PNG export depends on browser-side Plotly image generation; very large legends can produce large PNGs.
 - Selection-method correctness should be checked with engineering judgment, especially for new datasets.
-- Node.js is optional; without it, JavaScript syntax checks cannot run locally.
+- Node.js is used only for JavaScript syntax checks; `run_checks.bat` runs them automatically when Node.js is available.
+- GitHub Actions runs the same Python and JavaScript checks for pushes and pull requests.
 
 ## Pending Work
 
-- Further performance profiling on large uploaded workbooks.
-- More manual regression testing after UI/export changes.
-- Possible future cache budget/LRU control for Streamlit Cloud safety.
-- Possible additional tests for browser component state are not currently automated.
+- Measure load, context-switch, plot-toggle, and selection response times with a representative large workbook before adding more caching or refactoring.
+- Run the manual smoke checklist after browser-component or export changes.
+- Browser component state remains covered by targeted manual smoke testing rather than a browser-test framework.
 
 ## What Codex Should Read First
 

@@ -3,7 +3,7 @@ import os
 import hashlib
 import json
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Tuple, Optional, Union
+from typing import Callable, Dict, List, Tuple, Optional
 
 # Main app baseline with JS-side interactive case controls.
 
@@ -77,8 +77,6 @@ SPLINE_SMOOTHING_STEP = 0.05
 XR_EPS = 1e-9  # treat |R| < XR_EPS as invalid for X/R
 XR_EPS_DISPLAY = "1e-9"  # shown in UI text (keep in sync with XR_EPS)
 SHEET_VALUE_DTYPE = np.float32  # compact in-memory numeric representation for large uploads
-FIGURE_CACHE_MAX_ITEMS_ENV = "FS_SWEEP_MAX_FIGURE_CACHE_ITEMS"
-FIGURE_CACHE_LRU_STATE_KEY = "figure_cache_lru"
 LINE_X_AXIS_UNIT = "hz"
 
 # ---- Export ----
@@ -161,7 +159,7 @@ _plotly_export_button = components.declare_component(
 )
 
 _plotly_rx_toolbar = components.declare_component(
-    "plotly_rx_toolbar_v6",
+    "plotly_rx_toolbar_v7",
     path=str(os.path.join(os.path.dirname(__file__), "plotly_rx_toolbar")),
 )
 
@@ -185,9 +183,6 @@ class SweepSheet:
         return self._prepared
 
 
-SheetLike = Union[pd.DataFrame, SweepSheet]
-
-
 @dataclass
 class AppRenderContext:
     data_id: str
@@ -199,8 +194,8 @@ class AppRenderContext:
     enable_spline: bool
     smooth: float
     selection_reset_token: int
-    df_r: Optional[SheetLike]
-    df_x: Optional[SheetLike]
+    df_r: Optional[SweepSheet]
+    df_x: Optional[SweepSheet]
     location_cases: List[str]
     selected_location: str
     chart_id: str
@@ -321,15 +316,6 @@ def _pop_session_keys_matching(predicate: Callable[[str], bool]) -> int:
     return int(removed)
 
 
-def _env_int(name: str, default: int, min_value: int = 0) -> int:
-    raw = os.environ.get(str(name), "")
-    try:
-        value = int(str(raw).strip()) if str(raw).strip() else int(default)
-    except Exception:
-        value = int(default)
-    return max(int(min_value), int(value))
-
-
 def _stable_string_list_sig(values: List[str]) -> str:
     h = hashlib.sha1()
     for value in values:
@@ -349,34 +335,6 @@ def _stable_case_color_sig(cases: List[str], case_colors: Dict[str, str]) -> str
             h.update(len(b).to_bytes(4, "little", signed=False))
             h.update(b)
     return h.hexdigest()[:16]
-
-
-def _touch_figure_cache_key(fig_key: str, related_keys: List[str]) -> None:
-    max_items = _env_int(FIGURE_CACHE_MAX_ITEMS_ENV, 8, min_value=0)
-    if max_items <= 0:
-        return
-
-    raw_lru = st.session_state.get(FIGURE_CACHE_LRU_STATE_KEY)
-    lru: Dict[str, List[str]] = dict(raw_lru) if isinstance(raw_lru, dict) else {}
-    fig_key_s = str(fig_key)
-    lru.pop(fig_key_s, None)
-    lru[fig_key_s] = [str(k) for k in related_keys if str(k)]
-
-    for cached_fig_key in list(lru.keys()):
-        if cached_fig_key not in st.session_state and cached_fig_key != fig_key_s:
-            lru.pop(cached_fig_key, None)
-
-    while len(lru) > max_items:
-        old_fig_key = next(iter(lru))
-        old_related = lru.pop(old_fig_key, [])
-        if old_fig_key == fig_key_s:
-            lru[old_fig_key] = old_related
-            break
-        st.session_state.pop(old_fig_key, None)
-        for key in old_related:
-            st.session_state.pop(str(key), None)
-
-    st.session_state[FIGURE_CACHE_LRU_STATE_KEY] = lru
 
 
 def _prune_data_scoped_session_state(current_data_id: str) -> None:
@@ -679,26 +637,30 @@ def _sheet_from_dataframe(df: pd.DataFrame, sheet_name: str) -> SweepSheet:
 
 def _load_fs_sweep_xlsx_impl(path_or_buf) -> Dict[str, SweepSheet]:
     out: Dict[str, SweepSheet] = {}
-    xls = pd.ExcelFile(path_or_buf)
-    for name in ["R1", "X1", "R0", "X0"]:
-        if name not in xls.sheet_names:
-            continue
-        df = pd.read_excel(xls, sheet_name=name)
-        out[name] = _sheet_from_dataframe(df, name)
+    with pd.ExcelFile(path_or_buf) as xls:
+        for name in ["R1", "X1", "R0", "X0"]:
+            if name not in xls.sheet_names:
+                continue
+            df = pd.read_excel(xls, sheet_name=name)
+            out[name] = _sheet_from_dataframe(df, name)
     return out
 
 
 @st.cache_data(show_spinner=False)
-def load_fs_sweep_xlsx_cached(path_or_buf) -> Dict[str, SweepSheet]:
-    return _load_fs_sweep_xlsx_impl(path_or_buf)
+def load_fs_sweep_xlsx_cached(path: str, file_stamp: Tuple[int, int]) -> Dict[str, SweepSheet]:
+    del file_stamp
+    return _load_fs_sweep_xlsx_impl(path)
 
 
-def list_case_columns(df: Optional[SheetLike]) -> List[str]:
-    if df is None:
+def _local_workbook_cache_stamp(path: str) -> Tuple[int, int]:
+    stat_result = os.stat(path)
+    return int(stat_result.st_mtime_ns), int(stat_result.st_size)
+
+
+def list_case_columns(sheet: Optional[SweepSheet]) -> List[str]:
+    if sheet is None:
         return []
-    if isinstance(df, SweepSheet):
-        return [str(c) for c in df.case_ids]
-    return [c for c in df.columns if c != "Frequency (Hz)"]
+    return [str(c) for c in sheet.case_ids]
 
 
 def split_case_location(name: str) -> Tuple[str, Optional[str]]:
@@ -714,32 +676,15 @@ def display_case_name(name: str) -> str:
     return base
 
 
-def sheet_frequency_values(sheet: Optional[SheetLike]) -> Optional[np.ndarray]:
+def sheet_frequency_values(sheet: Optional[SweepSheet]) -> Optional[np.ndarray]:
     if sheet is None:
         return None
-    if isinstance(sheet, SweepSheet):
-        return np.asarray(sheet.frequency_hz, dtype=np.float64)
-    if "Frequency (Hz)" not in sheet.columns:
-        return None
-    return pd.to_numeric(sheet["Frequency (Hz)"], errors="coerce").to_numpy(dtype=np.float64, copy=False)
+    return np.asarray(sheet.frequency_hz, dtype=np.float64)
 
 
-def prepare_sheet_arrays(df: SheetLike) -> Tuple[np.ndarray, Dict[object, np.ndarray]]:
-    if isinstance(df, SweepSheet):
-        freq_hz, fmap = df.prepared_arrays()
-        return np.asarray(freq_hz, dtype=np.float64), {str(k): np.asarray(v) for k, v in fmap.items()}
-
-    cached = getattr(df, "attrs", {}).get("__prepared_arrays__")
-    if cached is not None:
-        return cached
-
-    freq_hz = df["Frequency (Hz)"].to_numpy(copy=False)
-    series_map: Dict[object, np.ndarray] = {}
-    for c in df.columns:
-        if c == "Frequency (Hz)":
-            continue
-        series_map[c] = df[c].to_numpy(copy=False)
-    return freq_hz, series_map
+def prepare_sheet_arrays(sheet: SweepSheet) -> Tuple[np.ndarray, Dict[str, np.ndarray]]:
+    freq_hz, case_arrays = sheet.prepared_arrays()
+    return np.asarray(freq_hz, dtype=np.float64), case_arrays
 
 
 @st.cache_data(show_spinner=False)
@@ -890,7 +835,7 @@ def _apply_line_harmonic_xaxis(fig: go.Figure, f_base: float, n_lo: float, n_hi:
 
 
 def make_spline_traces(
-    df: SheetLike,
+    df: Optional[SweepSheet],
     cases: List[str],
     f_base: float,
     y_title: str,
@@ -1107,7 +1052,7 @@ def apply_selection_mode_line_layout(fig: go.Figure, y_title: str, target_height
     )
 
 
-def build_plot_spline(df: Optional[SheetLike], cases: List[str], f_base: float, plot_height: int, y_title: str,
+def build_plot_spline(df: Optional[SweepSheet], cases: List[str], f_base: float, plot_height: int, y_title: str,
                       smooth: float, enable_spline: bool, legend_entrywidth: int, strip_location_suffix: bool,
                       use_auto_width: bool, figure_width_px: int, case_colors: Dict[str, str],
                       ) -> Tuple[go.Figure, Optional[np.ndarray]]:
@@ -1128,8 +1073,8 @@ def build_plot_spline(df: Optional[SheetLike], cases: List[str], f_base: float, 
 
 def _build_derived_line_spline(
     *,
-    df_r: Optional[SheetLike],
-    df_x: Optional[SheetLike],
+    df_r: Optional[SweepSheet],
+    df_x: Optional[SweepSheet],
     cases: List[str],
     f_base: float,
     plot_height: int,
@@ -1192,7 +1137,7 @@ def _build_derived_line_spline(
     return fig, f_series, dropped, total
 
 
-def build_x_over_r_spline(df_r: Optional[SheetLike], df_x: Optional[SheetLike], cases: List[str], f_base: float,
+def build_x_over_r_spline(df_r: Optional[SweepSheet], df_x: Optional[SweepSheet], cases: List[str], f_base: float,
                           plot_height: int, seq_label: str, smooth: float, legend_entrywidth: int,
                           enable_spline: bool,
                           strip_location_suffix: bool, use_auto_width: bool, figure_width_px: int,
@@ -1224,7 +1169,7 @@ def build_x_over_r_spline(df_r: Optional[SheetLike], df_x: Optional[SheetLike], 
     )
 
 
-def build_z_spline(df_r: Optional[SheetLike], df_x: Optional[SheetLike], cases: List[str], f_base: float,
+def build_z_spline(df_r: Optional[SweepSheet], df_x: Optional[SweepSheet], cases: List[str], f_base: float,
                    plot_height: int, seq_label: str, smooth: float, legend_entrywidth: int,
                    enable_spline: bool,
                    strip_location_suffix: bool, use_auto_width: bool, figure_width_px: int,
@@ -1283,8 +1228,8 @@ def _nearest_indices_for_targets(freq: np.ndarray, targets: np.ndarray) -> np.nd
 
 
 def build_rx_scatter_animated(
-    df_r: Optional[SheetLike],
-    df_x: Optional[SheetLike],
+    df_r: Optional[SweepSheet],
+    df_x: Optional[SweepSheet],
     cases: List[str],
     seq_label: str,
     case_colors: Dict[str, str],
@@ -1308,20 +1253,13 @@ def build_rx_scatter_animated(
             fig.update_layout(width=int(figure_width_px), autosize=False)
         return fig, 0
 
-    freq_candidates = sorted(
-        {
-            float(v)
-            for v in np.concatenate([fr[np.isfinite(fr)], fx[np.isfinite(fx)]], axis=0)
-            if np.isfinite(v)
-        }
-    )
-    if not freq_candidates:
+    freq_candidates_arr = np.union1d(fr[np.isfinite(fr)], fx[np.isfinite(fx)]).astype(float, copy=False)
+    if freq_candidates_arr.size == 0:
         fig.update_layout(height=scatter_height)
         if not use_auto_width:
             fig.update_layout(width=int(figure_width_px), autosize=False)
         return fig, 0
-    init_idx = int(min(len(freq_candidates) - 1, max(0, len(freq_candidates) // 2)))
-    freq_candidates_arr = np.asarray(freq_candidates, dtype=float)
+    init_idx = int(min(freq_candidates_arr.size - 1, max(0, freq_candidates_arr.size // 2)))
 
     case_arrays: List[Tuple[str, np.ndarray, np.ndarray]] = []
 
@@ -1344,31 +1282,32 @@ def build_rx_scatter_animated(
             fig.update_layout(width=int(figure_width_px), autosize=False)
         return fig, 0
 
-    axis_case_list = list(cases)
-    axis_r_arrays = [np.asarray(r_map[str(case)]) for case in axis_case_list if str(case) in r_map]
-    axis_x_arrays = [np.asarray(x_map[str(case)]) for case in axis_case_list if str(case) in x_map]
     r_global_min = r_global_max = x_global_min = x_global_max = None
-    if axis_r_arrays:
-        r_axis_matrix = np.column_stack(axis_r_arrays)
-        r_axis_finite = r_axis_matrix[np.isfinite(r_axis_matrix)]
-        if r_axis_finite.size > 0:
-            r_global_min = float(np.min(r_axis_finite))
-            r_global_max = float(np.max(r_axis_finite))
-    if axis_x_arrays:
-        x_axis_matrix = np.column_stack(axis_x_arrays)
-        x_axis_finite = x_axis_matrix[np.isfinite(x_axis_matrix)]
-        if x_axis_finite.size > 0:
-            x_global_min = float(np.min(x_axis_finite))
-            x_global_max = float(np.max(x_axis_finite))
+    for case in cases:
+        r_arr = r_map.get(str(case))
+        if r_arr is None:
+            continue
+        finite = np.asarray(r_arr)[np.isfinite(r_arr)]
+        if finite.size:
+            r_min, r_max = float(np.min(finite)), float(np.max(finite))
+            r_global_min = r_min if r_global_min is None else min(r_global_min, r_min)
+            r_global_max = r_max if r_global_max is None else max(r_global_max, r_max)
+    for case in cases:
+        x_arr = x_map.get(str(case))
+        if x_arr is None:
+            continue
+        finite = np.asarray(x_arr)[np.isfinite(x_arr)]
+        if finite.size:
+            x_min, x_max = float(np.min(finite)), float(np.max(finite))
+            x_global_min = x_min if x_global_min is None else min(x_global_min, x_min)
+            x_global_max = x_max if x_global_max is None else max(x_global_max, x_max)
 
     # Precompute nearest R/X row indices for each slider frequency once.
     idx_r_for_freq = _nearest_indices_for_targets(fr, freq_candidates_arr)
     idx_x_for_freq = _nearest_indices_for_targets(fx, freq_candidates_arr)
 
-    r_matrix = np.column_stack([np.asarray(r_arr) for _case, r_arr, _x_arr in case_arrays])
-    x_matrix = np.column_stack([np.asarray(x_arr) for _case, _r_arr, x_arr in case_arrays])
-    r_steps = r_matrix[idx_r_for_freq, :]
-    x_steps = x_matrix[idx_x_for_freq, :]
+    r_steps = np.column_stack([np.asarray(r_arr)[idx_r_for_freq] for _case, r_arr, _x_arr in case_arrays])
+    x_steps = np.column_stack([np.asarray(x_arr)[idx_x_for_freq] for _case, _r_arr, x_arr in case_arrays])
     finite_steps = np.isfinite(r_steps) & np.isfinite(x_steps)
     r_steps = np.where(finite_steps, r_steps, np.nan)
     x_steps = np.where(finite_steps, x_steps, np.nan)
@@ -1402,7 +1341,7 @@ def build_rx_scatter_animated(
             args=[int(i)],
             label=f"{float(f_sel):.1f}",
         )
-        for i, f_sel in enumerate(freq_candidates)
+        for i, f_sel in enumerate(freq_candidates_arr)
     ]
 
     shapes: List[dict] = [
@@ -1416,7 +1355,7 @@ def build_rx_scatter_animated(
             "rx_single_trace": {
                 "enabled": True,
                 "version": 2,
-                "freq_hz": [float(v) for v in freq_candidates],
+                "freq_hz": freq_candidates_arr.tolist(),
                 "point_count": int(len(point_case_ids)),
                 "order": "step-major",
                 "x_flat": x_flat_by_step,
@@ -1459,7 +1398,7 @@ def build_rx_scatter_animated(
         fig.update_yaxes(range=[float(x_global_min - xx_pad), float(x_global_max + xx_pad)])
     fig.update_xaxes(zeroline=False)
     fig.update_yaxes(zeroline=False)
-    return fig, len(freq_candidates)
+    return fig, int(freq_candidates_arr.size)
 
 
 def _make_plot_item(
@@ -1609,12 +1548,16 @@ def _load_data_source(default_path: str) -> Tuple[Dict[str, SweepSheet], str]:
         return data, data_id
 
     if os.path.exists(default_path):
-        with st.spinner("Loading workbook..."):
-            data = load_fs_sweep_xlsx_cached(default_path)
         try:
-            data_id = f"local:{int(os.path.getmtime(default_path))}"
-        except Exception:
+            file_stamp = _local_workbook_cache_stamp(default_path)
+        except OSError:
+            with st.spinner("Loading workbook..."):
+                data = _load_fs_sweep_xlsx_impl(default_path)
             data_id = "local"
+        else:
+            with st.spinner("Loading workbook..."):
+                data = load_fs_sweep_xlsx_cached(default_path, file_stamp)
+            data_id = f"local:{file_stamp[0]}:{file_stamp[1]}"
         st.sidebar.info(f"Loaded local file: {default_path}")
         return data, data_id
 
@@ -1940,7 +1883,6 @@ def _get_or_build_cached_line_figure(
         st.session_state[fig_key] = fig
     raw_meta = st.session_state.get(meta_key, {})
     meta = raw_meta if isinstance(raw_meta, dict) else {}
-    _touch_figure_cache_key(fig_key, [sig_key, meta_key])
     return fig, meta
 
 
@@ -1984,7 +1926,7 @@ def _line_sig_payload(
 def _build_cached_xy_plot_item(
     *,
     kind: str,
-    df: Optional[SheetLike],
+    df: Optional[SweepSheet],
     cases: List[str],
     data_id: str,
     seq_label: str,
@@ -2061,8 +2003,8 @@ def _build_cached_xy_plot_item(
 def _build_cached_pair_plot_item(
     *,
     kind: str,
-    df_r: Optional[SheetLike],
-    df_x: Optional[SheetLike],
+    df_r: Optional[SweepSheet],
+    df_x: Optional[SweepSheet],
     cases: List[str],
     data_id: str,
     seq_label: str,
@@ -2128,8 +2070,8 @@ def _build_cached_pair_plot_item(
 
 def _build_cached_xr_plot_item(
     *,
-    df_r: Optional[SheetLike],
-    df_x: Optional[SheetLike],
+    df_r: Optional[SweepSheet],
+    df_x: Optional[SweepSheet],
     cases: List[str],
     data_id: str,
     seq_label: str,
@@ -2203,8 +2145,8 @@ def _build_cached_xr_plot_item(
 
 def _build_cached_z_plot_item(
     *,
-    df_r: Optional[SheetLike],
-    df_x: Optional[SheetLike],
+    df_r: Optional[SweepSheet],
+    df_x: Optional[SweepSheet],
     cases: List[str],
     data_id: str,
     seq_label: str,
@@ -2286,8 +2228,8 @@ def _get_or_build_cached_rx_scatter_figure(
     *,
     data_id: str,
     seq_label: str,
-    df_r: Optional[SheetLike],
-    df_x: Optional[SheetLike],
+    df_r: Optional[SweepSheet],
+    df_x: Optional[SweepSheet],
     location_cases: List[str],
     case_colors: Dict[str, str],
     cases_sig: str,
@@ -2343,7 +2285,6 @@ def _get_or_build_cached_rx_scatter_figure(
     else:
         rx_fig = go.Figure(cached_rx_fig if isinstance(cached_rx_fig, dict) else {})
         st.session_state[rx_fig_cache_key] = rx_fig
-    _touch_figure_cache_key(rx_fig_cache_key, [rx_filter_sig_key, rx_fig_sig_key, rx_fig_steps_key])
     return rx_fig, int(st.session_state.get(rx_fig_steps_key, 0))
 
 

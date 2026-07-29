@@ -2,12 +2,14 @@
 
 Run after meaningful app changes. Use current conda environment `fs-sweep-visualizer`.
 
+Prefer `run_checks.bat` on Windows. It activates the correct environment and runs Node.js syntax checks automatically when Node.js is available.
+
 ## Static Checks
 
 ```powershell
-python -m py_compile fs_sweep_app_spline.py preselection_shortlist.py tests/test_preselection_payload.py
-python -m unittest tests.test_preselection_payload
-python -m pyflakes fs_sweep_app_spline.py preselection_shortlist.py tests/test_preselection_payload.py
+python -m py_compile fs_sweep_app_spline.py preselection_shortlist.py tests/test_preselection_payload.py tests/test_app_contracts.py
+python -m unittest discover -s tests
+python -m pyflakes fs_sweep_app_spline.py preselection_shortlist.py tests/test_preselection_payload.py tests/test_app_contracts.py
 ```
 
 Optional if Node.js is installed:
@@ -24,6 +26,11 @@ node --check plotly_selection_bridge/selection_table_module.js
 - Start app with `run_app.bat` or `streamlit run fs_sweep_app_spline.py`.
 - Confirm local `FS_sweep.xlsx` loads.
 - Confirm uploading another `.xlsx` workbook works.
+
+## Source Control
+
+- Confirm `git status -sb` contains only the intended changes before committing.
+- Do not add `__pycache__`, private workbooks, or exported PNGs.
 
 ## Context Switching
 
@@ -67,6 +74,7 @@ node --check plotly_selection_bridge/selection_table_module.js
 - Test capacitive variants for relevant methods.
 - Change Top N values.
 - Confirm selected cases update in scatter and line plots.
+- Confirm the toolbar refreshes after each method toggle and Clear selected list.
 
 ## Scatter Frequency Controls
 

@@ -4,7 +4,7 @@
 
 This folder is the active FS Sweep Visualizer project root.
 
-Treat this project as not using Git unless the user explicitly says otherwise.
+This is a Git repository. Preserve unrelated worktree changes, inspect `git status -sb` before editing, and do not use destructive Git commands unless explicitly requested.
 
 ## Before Editing
 
@@ -33,9 +33,9 @@ Treat this project as not using Git unless the user explicitly says otherwise.
 Run the smallest relevant checks after edits:
 
 ```powershell
-python -m py_compile fs_sweep_app_spline.py preselection_shortlist.py tests/test_preselection_payload.py
-python -m unittest tests.test_preselection_payload
-python -m pyflakes fs_sweep_app_spline.py preselection_shortlist.py tests/test_preselection_payload.py
+python -m py_compile fs_sweep_app_spline.py preselection_shortlist.py tests/test_preselection_payload.py tests/test_app_contracts.py
+python -m unittest discover -s tests
+python -m pyflakes fs_sweep_app_spline.py preselection_shortlist.py tests/test_preselection_payload.py tests/test_app_contracts.py
 ```
 
 Optional if Node.js is installed:

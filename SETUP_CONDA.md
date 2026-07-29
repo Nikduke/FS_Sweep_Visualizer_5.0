@@ -2,6 +2,13 @@
 
 This project should use its own conda environment, not `base`.
 
+## Get the Project
+
+```powershell
+git clone git@github.com:Nikduke/FS_Sweep_Visualizer_5.0.git
+cd FS_Sweep_Visualizer_5.0
+```
+
 ## Recommended Environment
 
 - Environment name: `fs-sweep-visualizer`
@@ -49,9 +56,9 @@ run_app.bat
 
 ```powershell
 python -m streamlit --version
-python -m py_compile fs_sweep_app_spline.py preselection_shortlist.py tests/test_preselection_payload.py
-python -m unittest tests.test_preselection_payload
-python -m pyflakes fs_sweep_app_spline.py preselection_shortlist.py tests/test_preselection_payload.py
+python -m py_compile fs_sweep_app_spline.py preselection_shortlist.py tests/test_preselection_payload.py tests/test_app_contracts.py
+python -m unittest discover -s tests
+python -m pyflakes fs_sweep_app_spline.py preselection_shortlist.py tests/test_preselection_payload.py tests/test_app_contracts.py
 ```
 
 Optional, if Node.js is installed:
@@ -62,6 +69,8 @@ node --check plotly_rx_toolbar/listener.js
 node --check plotly_selection_bridge/listener.js
 node --check plotly_selection_bridge/selection_table_module.js
 ```
+
+`run_checks.bat` performs these checks automatically when it finds Node.js.
 
 ## Troubleshooting
 

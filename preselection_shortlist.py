@@ -27,7 +27,7 @@ def default_energinet_thresholds_for_f1(f1_hz: float) -> Dict[int, float]:
     return dict(ENERGINET_DEFAULT_THRESHOLDS_BY_F1[key])
 
 
-def _sheet_arrays_payload(sheet: Any, sheet_name: str) -> Optional[Tuple[np.ndarray, List[str], np.ndarray]]:
+def _sheet_metadata(sheet: Any, sheet_name: str) -> Optional[Tuple[np.ndarray, List[str], np.ndarray]]:
     if sheet is None:
         return None
     has_attrs = (
@@ -39,7 +39,7 @@ def _sheet_arrays_payload(sheet: Any, sheet_name: str) -> Optional[Tuple[np.ndar
         return None
     freq = np.asarray(getattr(sheet, "frequency_hz"), dtype=float)
     case_ids = [str(v) for v in tuple(getattr(sheet, "case_ids"))]
-    values = np.asarray(getattr(sheet, "values"), dtype=float)
+    values = np.asarray(getattr(sheet, "values"))
     if values.ndim != 2:
         raise ValueError(f"Sheet '{sheet_name}' values must be a 2-D matrix.")
     if values.shape[0] != freq.shape[0]:
@@ -50,7 +50,7 @@ def _sheet_arrays_payload(sheet: Any, sheet_name: str) -> Optional[Tuple[np.ndar
 
 
 def _sheet_case_columns(df: Any, sheet_name: str = "") -> List[str]:
-    payload = _sheet_arrays_payload(df, sheet_name)
+    payload = _sheet_metadata(df, sheet_name)
     if payload is not None:
         _freq, case_ids, _values = payload
         return [str(c) for c in case_ids]
@@ -58,7 +58,7 @@ def _sheet_case_columns(df: Any, sheet_name: str = "") -> List[str]:
 
 
 def _frequency_vector(df: Any, sheet_name: str) -> np.ndarray:
-    payload = _sheet_arrays_payload(df, sheet_name)
+    payload = _sheet_metadata(df, sheet_name)
     if payload is not None:
         freq = np.asarray(payload[0], dtype=float)
         if freq.size == 0:
@@ -115,7 +115,7 @@ def _extract_case_arrays(
     row_order: Optional[np.ndarray] = None,
 ) -> Dict[str, np.ndarray]:
     out: Dict[str, np.ndarray] = {}
-    payload = _sheet_arrays_payload(df, sheet_name)
+    payload = _sheet_metadata(df, sheet_name)
     if payload is not None:
         _freq, case_ids, values = payload
         index_by_case = {str(cid): i for i, cid in enumerate(case_ids)}
@@ -195,10 +195,17 @@ def _compute_harmonic_max_points(
     f1_hz: float,
     n_values: Sequence[int],
     capacitive_only: bool = False,
+    band_indices: Optional[Dict[int, np.ndarray]] = None,
 ) -> Tuple[Dict[int, np.ndarray], Dict[int, Dict[str, Dict[str, float]]]]:
     band_half = BAND_HALF_WIDTH_FACTOR * float(f1_hz)
     unique_n = sorted({int(n) for n in n_values if int(n) >= 1})
-    band_indices = {int(n): _band_indices(freq, float(n) * float(f1_hz), band_half) for n in unique_n}
+    if band_indices is None:
+        band_indices = {int(n): _band_indices(freq, float(n) * float(f1_hz), band_half) for n in unique_n}
+    else:
+        band_indices = {
+            int(n): np.asarray(band_indices.get(int(n), np.empty(0, dtype=int)), dtype=int)
+            for n in unique_n
+        }
     points_by_n: Dict[int, Dict[str, Dict[str, float]]] = {int(n): {} for n in unique_n}
 
     for n in unique_n:
@@ -808,7 +815,7 @@ def build_preselection_payload(
             f1_val,
             harmonic_range,
         )
-        _band_indices_cap, harmonic_points_capacitive = _compute_harmonic_max_points(
+        _unused_band_indices, harmonic_points_capacitive = _compute_harmonic_max_points(
             freq,
             r_map,
             x_map,
@@ -816,6 +823,7 @@ def build_preselection_payload(
             f1_val,
             harmonic_range,
             capacitive_only=True,
+            band_indices=band_indices,
         )
         energinet = _compute_energinet_metrics(
             freq,

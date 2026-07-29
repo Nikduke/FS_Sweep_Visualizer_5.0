@@ -1,6 +1,6 @@
 ﻿# Starter Prompt for Codex on New Laptop
 
-You are working in this folder as the active project root. Treat this project as not using Git unless I explicitly say otherwise.
+You are working in this folder as the active project root. It is a Git repository on `main`, published to `git@github.com:Nikduke/FS_Sweep_Visualizer_5.0.git`.
 
 First read:
 
@@ -10,6 +10,8 @@ First read:
 4. `CLEANUP_SMOKE_CHECKLIST.md`
 
 Then inspect the actual codebase before making claims or edits.
+
+Before editing, inspect `git status -sb`. Preserve unrelated user changes and do not use destructive Git commands.
 
 Use Anaconda Python with the dedicated conda environment `fs-sweep-visualizer`. Do not use the base environment. If the environment does not exist, create it with:
 

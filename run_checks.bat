@@ -32,13 +32,13 @@ if errorlevel 1 (
     exit /b 1
 )
 
-python -m py_compile fs_sweep_app_spline.py preselection_shortlist.py tests/test_preselection_payload.py
+python -m py_compile fs_sweep_app_spline.py preselection_shortlist.py tests/test_preselection_payload.py tests/test_app_contracts.py
 if errorlevel 1 exit /b 1
 
-python -m unittest tests.test_preselection_payload
+python -m unittest discover -s tests
 if errorlevel 1 exit /b 1
 
-python -m pyflakes fs_sweep_app_spline.py preselection_shortlist.py tests/test_preselection_payload.py
+python -m pyflakes fs_sweep_app_spline.py preselection_shortlist.py tests/test_preselection_payload.py tests/test_app_contracts.py
 if errorlevel 1 exit /b 1
 
 set "NODE_EXE="

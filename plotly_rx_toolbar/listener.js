@@ -515,7 +515,6 @@ function pushMethodEnabled(stateKey, apiMethod, flag) {
     const api = getSelectionApi(stateKey);
     if (api && typeof api[apiMethod] === "function") {
       api[apiMethod](flag === true);
-      syncSelectionControls(stateKey, true);
     }
   } catch (e) {
     debugWarn(`pushMethodEnabled.${apiMethod}`, e);
@@ -928,7 +927,6 @@ function render() {
         const api = getSelectionApi(stateKey);
         if (api && typeof api.clearSelection === "function") {
           api.clearSelection();
-          syncSelectionControls(stateKey, true);
         }
       } catch (e) {
         debugWarn("clearSelection.click", e);
