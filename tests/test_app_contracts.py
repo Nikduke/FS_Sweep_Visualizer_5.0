@@ -76,6 +76,8 @@ class AppContractTests(unittest.TestCase):
         self.assertEqual(contract["frequency_readout_annotation_index"], 0)
         self.assertEqual(fig.layout.sliders[0].active, 2)
         self.assertFalse(fig.layout.sliders[0].currentvalue.visible)
+        self.assertEqual(fig.layout.sliders[0].y, -0.16)
+        self.assertEqual(fig.layout.sliders[0].yanchor, "top")
         self.assertEqual([step.label for step in fig.layout.sliders[0].steps], ["60", "120", "180"])
         self.assertEqual([annotation.text for annotation in fig.layout.annotations], ["Frequency (Hz): 180.0"])
         self.assertEqual(len(contract["x_flat"]), step_count * contract["point_count"])

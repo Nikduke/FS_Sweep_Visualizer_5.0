@@ -143,7 +143,7 @@ DIM_MARKER_OPACITY = 0.28
 # ---- R vs X scatter ----
 RX_SCATTER_HEIGHT_FACTOR = 1.5
 RX_TOOLBAR_INITIAL_HEIGHT_PX = 220
-RX_SCATTER_SLIDER_BOTTOM_MARGIN_PX = 112
+RX_SCATTER_SLIDER_BOTTOM_MARGIN_PX = 156
 SELECTION_MODE_AXIS_FONT_COLOR = "#6B7280"
 SELECTION_MODE_AXIS_TITLE_FONT_SIZE_PX = 14
 SELECTION_MODE_TICK_FONT_SIZE_PX = 12
@@ -1393,7 +1393,7 @@ def build_rx_scatter_animated(
         annotations=[
             dict(
                 x=0,
-                y=-0.06,
+                y=-0.12,
                 xref="paper",
                 yref="paper",
                 text=frequency_readout,
@@ -1407,7 +1407,11 @@ def build_rx_scatter_animated(
             dict(
                 active=int(init_idx),
                 currentvalue=dict(visible=False),
-                pad=dict(t=20),
+                x=0,
+                len=1,
+                y=-0.16,
+                yanchor="top",
+                pad=dict(t=12, b=0),
                 steps=slider_steps,
             )
         ],
@@ -1423,7 +1427,7 @@ def build_rx_scatter_animated(
         xx_pad = max(1e-12, 0.04 * max(1e-12, float(x_global_max - x_global_min)))
         fig.update_xaxes(range=[float(r_global_min - rx_pad), float(r_global_max + rx_pad)])
         fig.update_yaxes(range=[float(x_global_min - xx_pad), float(x_global_max + xx_pad)])
-    fig.update_xaxes(zeroline=False)
+    fig.update_xaxes(zeroline=False, title_standoff=8)
     fig.update_yaxes(zeroline=False)
     return fig, int(freq_candidates_arr.size)
 
