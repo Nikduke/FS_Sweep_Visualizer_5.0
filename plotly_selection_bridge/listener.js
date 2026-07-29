@@ -1468,6 +1468,7 @@ function getRxSingleTracePayload(gd) {
     const pointCount = Math.max(0, Math.floor(Number(raw.point_count || 0)));
     const xFlat = Array.isArray(raw.x_flat) ? raw.x_flat : [];
     const yFlat = Array.isArray(raw.y_flat) ? raw.y_flat : [];
+    const frequencyReadoutAnnotationIndex = Number(raw.frequency_readout_annotation_index);
     if (pointCount > 0 && xFlat.length === freqValues.length * pointCount && yFlat.length === xFlat.length) {
       const stepValues = (arr, idx) => {
         const start = Math.max(0, Math.floor(Number(idx || 0))) * pointCount;
@@ -1478,6 +1479,7 @@ function getRxSingleTracePayload(gd) {
         xAtStep: (idx) => stepValues(xFlat, idx),
         yAtStep: (idx) => stepValues(yFlat, idx),
         seqLabel: String(raw.seq_label || ""),
+        frequencyReadoutAnnotationIndex,
       };
     }
 
@@ -1526,7 +1528,12 @@ function applyScatterFrequencyIndex(ctx, gd, nextIndex, options) {
   // Only our own stored index can prove the scatter trace is already restyled.
   if (Number.isFinite(currentRaw) && Math.floor(currentRaw) === idx) return true;
 
-  const relayoutPayload = { "sliders[0].active": idx };
+  const relayoutPayload = {};
+  if (syncSlider) relayoutPayload["sliders[0].active"] = idx;
+  if (Number.isFinite(payload.frequencyReadoutAnnotationIndex)) {
+    relayoutPayload[`annotations[${Math.floor(payload.frequencyReadoutAnnotationIndex)}].text`] =
+      `Frequency (Hz): ${Number(payload.freqValues[idx]).toFixed(1)}`;
+  }
   const dataPayload = {
     x: [payload.xAtStep(idx)],
     y: [payload.yAtStep(idx)],
@@ -1538,7 +1545,7 @@ function applyScatterFrequencyIndex(ctx, gd, nextIndex, options) {
       Plotly.update(gd, dataPayload, relayoutPayload, [pointTraceIndex]);
     } else {
       Plotly.restyle(gd, dataPayload, [pointTraceIndex]);
-      if (syncSlider) Plotly.relayout(gd, relayoutPayload);
+      if (Object.keys(relayoutPayload).length && Plotly.relayout) Plotly.relayout(gd, relayoutPayload);
     }
     gd.__fsRxSingleActiveIndex = idx;
     if (ctx) notifySelectionStateChanged(ctx, {

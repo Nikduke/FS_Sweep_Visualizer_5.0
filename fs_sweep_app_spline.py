@@ -150,7 +150,7 @@ SELECTION_MODE_TICK_FONT_SIZE_PX = 12
 SELECTION_MODE_LINE_MARGIN_BOTTOM_PX = 72
 
 _plotly_selection_bridge = components.declare_component(
-    "plotly_selection_bridge_v22",
+    "plotly_selection_bridge_v23",
     path=str(os.path.join(os.path.dirname(__file__), "plotly_selection_bridge")),
 )
 
@@ -1337,40 +1337,25 @@ def build_rx_scatter_animated(
     )
     fig.add_trace(go.Scatter(**tr0))
 
-    slider_steps = [
-        dict(
-            method="skip",
-            args=[int(i)],
-            label=f"{float(f_sel):.1f}",
-        )
-        for i, f_sel in enumerate(freq_candidates_arr)
-    ]
-    harmonic_annotations: List[dict] = []
+    slider_labels = ["" for _ in range(freq_candidates_arr.size)]
     freq_min = float(freq_candidates_arr[0])
     freq_max = float(freq_candidates_arr[-1])
-    first_harmonic = max(1, int(np.ceil(freq_min / float(f_base))))
+    first_harmonic = max(0, int(np.ceil(freq_min / float(f_base))))
     last_harmonic = int(np.floor(freq_max / float(f_base)))
-    if last_harmonic >= first_harmonic and freq_max > freq_min:
+    if last_harmonic >= first_harmonic:
         harmonics = list(range(first_harmonic, last_harmonic + 1))
         label_step = max(1, int(np.ceil(len(harmonics) / 12)))
         labeled_harmonics = harmonics[::label_step]
         if labeled_harmonics[-1] != harmonics[-1]:
             labeled_harmonics.append(harmonics[-1])
         for harmonic in labeled_harmonics:
-            x_pos = (float(harmonic) * float(f_base) - freq_min) / (freq_max - freq_min)
-            harmonic_annotations.append(
-                dict(
-                    x=max(0.0, min(1.0, x_pos)),
-                    y=-0.23,
-                    xref="paper",
-                    yref="paper",
-                    text=f"n={int(harmonic)}",
-                    showarrow=False,
-                    font=dict(size=11, color="#6B7280"),
-                    xanchor="center",
-                    yanchor="top",
-                )
-            )
+            harmonic_idx = int(np.argmin(np.abs(freq_candidates_arr - (float(harmonic) * float(f_base)))))
+            slider_labels[harmonic_idx] = f"{float(harmonic) * float(f_base):.0f}"
+    slider_steps = [
+        dict(method="skip", args=[int(i)], label=str(slider_labels[i]))
+        for i in range(freq_candidates_arr.size)
+    ]
+    frequency_readout = f"Frequency (Hz): {float(freq_candidates_arr[init_idx]):.1f}"
 
     shapes: List[dict] = [
         dict(type="line", xref="x", yref="paper", x0=0, x1=0, y0=0, y1=1, line=dict(color="rgba(0,0,0,0.45)", width=1)),
@@ -1389,6 +1374,7 @@ def build_rx_scatter_animated(
                 "x_flat": x_flat_by_step,
                 "y_flat": y_flat_by_step,
                 "seq_label": str(seq_label),
+                "frequency_readout_annotation_index": 0,
             }
         },
         height=scatter_height,
@@ -1404,11 +1390,23 @@ def build_rx_scatter_animated(
         # Using "event" avoids Plotly's built-in selection-state side effects.
         clickmode="event",
         shapes=shapes,
-        annotations=harmonic_annotations,
+        annotations=[
+            dict(
+                x=0,
+                y=-0.06,
+                xref="paper",
+                yref="paper",
+                text=frequency_readout,
+                showarrow=False,
+                font=dict(size=12, color="#6B7280"),
+                xanchor="left",
+                yanchor="bottom",
+            )
+        ],
         sliders=[
             dict(
                 active=int(init_idx),
-                currentvalue=dict(prefix="Frequency (Hz): "),
+                currentvalue=dict(visible=False),
                 pad=dict(t=20),
                 steps=slider_steps,
             )
@@ -2284,7 +2282,7 @@ def _get_or_build_cached_rx_scatter_figure(
     rx_sig_payload = {
         "seq": str(seq_label),
         "f_base": float(f_base),
-        "layout": "explicit_scatter_margins_v2",
+        "layout": "explicit_scatter_margins_v3",
         "plot_h": int(plot_height),
         "auto_w": bool(render_auto_width),
         "fig_w": int(figure_width_px),

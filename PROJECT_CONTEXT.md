@@ -30,7 +30,7 @@ Current snapshot includes the latest local app updates:
 - Plot-area height default is `400`.
 - `R vs X` scatter keeps height factor `1.5` relative to plot-area height.
 - Scatter now respects manual/default figure width when Auto width is off.
-- Scatter frequency slider opens at the available frequency nearest the third harmonic of the selected base. Its readout stays in Hz, with harmonic-order labels along the slider for navigation.
+- Scatter frequency slider opens at the available frequency nearest the third harmonic of the selected base. It labels only base-frequency harmonics along the slider and keeps a separate live Hz readout above it.
 - Custom `Export PNG` has `Fixed size` checked by default.
 - Fixed export uses width `1000`, plot-area height `400`, and scale `4`.
 - Scatter fixed export uses the scatter 1.5-height value.

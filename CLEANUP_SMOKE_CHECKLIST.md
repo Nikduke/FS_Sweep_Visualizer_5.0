@@ -79,7 +79,7 @@ node --check plotly_selection_bridge/selection_table_module.js
 ## Scatter Frequency Controls
 
 - Move in-plot slider.
-- Confirm harmonic-order labels appear along the in-plot slider and the readout remains in Hz.
+- Confirm base-frequency harmonic labels appear along the in-plot slider and the readout remains in Hz.
 - Use Previous frequency / Next frequency.
 - Use Set f (Hz).
 - Confirm frequency value and scatter points update together.
